@@ -18,9 +18,11 @@
 #define FREQ_ARRAY_SIZE 10
 #define SEQ_DIFF 10
 //-----------------------------
+/*
 #define DEVICE_ID1 0x41
 #define DEVICE_ID2 0x41
 #define DEVICE_ID3 0x41
+*/
 //------------------------------
 #define REG_CHANNEL_1  866.1 // 866.10MHz
 #define REG_CHANNEL_2  863.8 // 866.40MHz

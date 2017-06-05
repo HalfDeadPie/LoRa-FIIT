@@ -201,9 +201,12 @@ void RH_RF95::validateRxBuf()
 	if (_bufLen < 4)
 	return; // Too short to be a real message
 	
-	//todo: nasa validacia
-	_rxGood++;
-	_rxBufValid = true;
+	if(_buf[0]	== DEVICE_ID1 && 
+	_buf[1] == DEVICE_ID2 && 
+	_buf[2] == DEVICE_ID3){
+		_rxGood++;
+		_rxBufValid = true;
+	}
 }
 
 bool RH_RF95::available()

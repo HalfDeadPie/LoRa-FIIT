@@ -795,7 +795,7 @@ uint32_t lora::WaitDutyCycle(uint8_t len, float bw, uint8_t sf, uint8_t cr, uint
 //Function: Set the manual settings mode
 void lora::SetManual(bool value){
 	if(value == true){
-		Serial.println("**The manual mode has been set. Now you are responsible for respecting the duty cycle**");
+		Serial.println("**MANUALMODE: You are responsible for respecting the duty cycle**");
 		_sendtime = millis();
 	}
 	_manual = value;

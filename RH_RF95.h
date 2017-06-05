@@ -1,5 +1,10 @@
 // RH_RF95.h
-//
+
+//Device ID for LoRa@FIIT
+#define DEVICE_ID1 0x41
+#define DEVICE_ID2 0x41
+#define DEVICE_ID3 0x41
+
 // Definitions for HopeRF LoRa radios per:
 // http://www.hoperf.com/upload/rf/RFM95_96_97_98W.pdf
 // http://www.hoperf.cn/upload/rfchip/RF96_97_98.pdf
