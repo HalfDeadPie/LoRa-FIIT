@@ -1,7 +1,7 @@
 #ifndef lora_h
 #define lora_h
 
-#define DEBUG
+#define DEBUG 1
 
 #include <SPI.h>
 #include "RH_RF95.h"
@@ -66,6 +66,17 @@
 #define REC_E_PW 0xE0
 #define REC_E_SF 0xF0
 
+#define SF7 0x00
+#define SF8 0x01
+#define SF9 0x02
+#define SF10 0x03
+#define SF11 0x04
+#define SF12 0x05
+#define Number_Of_SF 0x06
+
+#define Emergncy_freq 0x00
+#define Register_freq 0x01
+
 // Coding rate
 const byte CR_5 = B00000010; // 4/5
 const byte CR_6 = B00000100; // 4/6
@@ -121,6 +132,17 @@ struct netconfig {
 
 class lora : private RH_RF95
 {
+  uint8_t SF_allSentMsg[Number_Of_SF];
+  uint8_t SF_OkSentMsg[Number_Of_SF];
+  float SF_successRate[Number_Of_SF];
+
+  uint8_t currentSF;
+
+  float bwDC;
+	uint8_t percentageDC;
+	uint8_t crDC;
+	uint8_t sfDC;
+
   public:
     /** Parameters are Slave-Select pin, Interrupt pin for Tx and Rx done, Reset pin */
     lora(uint8_t slaveSelectPin, uint8_t interruptPin, uint8_t resetPin);
@@ -170,7 +192,7 @@ class lora : private RH_RF95
     unsigned long GetDutyWait();
 
     /** Duty cycle handler, returns time on air for the message. This should be used if _manual = true because of respecting the duty cycle */
-    uint32_t WaitDutyCycle(uint8_t len, float bw, uint8_t sf, uint8_t cr, uint8_t percentage);
+    uint32_t WaitDutyCycle(uint8_t len, float bw, uint8_t sf, uint8_t cr, uint8_t type);
 
   private:
     /** Reset pin - used for reset in On() */
@@ -211,8 +233,32 @@ class lora : private RH_RF95
     /** Returns the message length */
     uint8_t GetMessageLength(uint8_t len);
 
+    /** Returns the best SF for transmission*/
+    uint8_t pickBestSF(uint8_t frequency);
+
+    /** Returns the best SF for given frequency*/
+    uint8_t getBestSF(float SF_successRateSentFreq[]);
+
+    /** Returns the SF success rate */
+    void calculateSFsuccessRate();
+
+     /** Returns the SF success rate based on number of succesfully sent messages on that SF to number of all messages sent on that SF*/
+    float getSFsuccessRate(uint8_t okSentMessages, uint8_t allSentMessages);
+
+    /** sets message rate for SF, number of succesfully send messages and number of all messages sent*/
+    bool setSFmessageCount(uint8_t successfullySent, uint8_t frequency);
+
+    /** Returns maximum transmission time for packet, maximum time for how long medium will be used by other device when transmission is detected*/
+    uint8_t getMaximumTransmissionTime(float bw, uint8_t sf, uint8_t cr);
+
+    /** Returns maximum length of application data in a packet based on communication parameters*/
+    uint8_t getMaxLen(float bw, uint8_t sf);
+
+    /** sets success rate for each SF to 0 for Emergency frequency*/
+    void clearSFsuccessRate();
+
     /** Common sending function */
-    void SendMessage(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len);
+    bool SendMessage(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len);
 };
 
 #endif
