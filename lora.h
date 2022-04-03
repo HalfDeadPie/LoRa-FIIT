@@ -132,15 +132,17 @@ struct netconfig {
 
 class lora : private RH_RF95
 {
-  uint8_t SF_allSentMsg[Number_Of_SF];
-  uint8_t SF_OkSentMsg[Number_Of_SF];
+  unsigned int SF_allSentMsg[Number_Of_SF];
+  unsigned int SF_OkSentMsg[Number_Of_SF];
   float SF_successRate[Number_Of_SF];
+  unsigned int allSentMessages;
 
   uint8_t currentSF;
 
   float bwDC;
 	uint8_t percentageDC;
 	uint8_t crDC;
+  uint8_t maxCR_DC = 8;
 	uint8_t sfDC;
 
   public:
@@ -234,7 +236,7 @@ class lora : private RH_RF95
     uint8_t GetMessageLength(uint8_t len);
 
     /** Returns the best SF for transmission*/
-    uint8_t pickBestSF(uint8_t frequency);
+    uint8_t pickBestSF();
 
     /** Returns the best SF for given frequency*/
     uint8_t getBestSF(float SF_successRateSentFreq[]);
@@ -246,10 +248,10 @@ class lora : private RH_RF95
     float getSFsuccessRate(uint8_t okSentMessages, uint8_t allSentMessages);
 
     /** sets message rate for SF, number of succesfully send messages and number of all messages sent*/
-    bool setSFmessageCount(uint8_t successfullySent, uint8_t frequency);
+    bool messageSuccesfullySendOnSF(bool successfullySent);
 
     /** Returns maximum transmission time for packet, maximum time for how long medium will be used by other device when transmission is detected*/
-    uint8_t getMaximumTransmissionTime(float bw, uint8_t sf, uint8_t cr);
+    uint8_t getMaximumTransmissionTime(float bw, uint8_t sf);
 
     /** Returns maximum length of application data in a packet based on communication parameters*/
     uint8_t getMaxLen(float bw, uint8_t sf);
@@ -259,6 +261,9 @@ class lora : private RH_RF95
 
     /** Common sending function */
     bool SendMessage(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len);
+
+    /** Upper Confidence Bound algorithmic function to determine the best SF to send the next message**/
+    uint8_t UCB();
 };
 
 #endif

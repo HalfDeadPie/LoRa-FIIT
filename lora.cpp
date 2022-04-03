@@ -1,4 +1,5 @@
 #include "lora.h"
+#include <math.h>
 
 /**
  * Constructor: Parameters are Slave-select pin, interrupt pin, reset pin
@@ -351,64 +352,79 @@ void lora::calculateSFsuccessRate(){
 	SF_successRate[SF9] = getSFsuccessRate(SF_OkSentMsg[SF9], SF_allSentMsg[SF9]);
 	SF_successRate[SF10] = getSFsuccessRate(SF_OkSentMsg[SF10], SF_allSentMsg[SF10]);
 	SF_successRate[SF11] = getSFsuccessRate(SF_OkSentMsg[SF11], SF_allSentMsg[SF11]);
-	SF_successRate[SF12] = getSFsuccessRate(SF_OkSentMsg[SF11], SF_allSentMsg[SF11]);
+	SF_successRate[SF12] = getSFsuccessRate(SF_OkSentMsg[SF12], SF_allSentMsg[SF12]);
 }
 
 /**
  * 
  */
-uint8_t lora::pickBestSF(uint8_t frequency){
+uint8_t lora::UCB(){
+    float SFConfidenceBound;
+    float confidence_interval;
+    float max_SF_bound = 0;
+    uint8_t bestSF = 0;
+
+    if(allSentMessages == 0)
+        return 7;
+
+    for (uint8_t  i = 0; i < Number_Of_SF; i++)
+    {
+        if(SF_allSentMsg[i] > 0){
+            confidence_interval = sqrt(3/2 * log(allSentMessages + 1) / SF_allSentMsg[i]);
+            SFConfidenceBound = SF_successRate[i] + confidence_interval;
+            if(SFConfidenceBound > max_SF_bound){
+                max_SF_bound = SFConfidenceBound;
+                bestSF = i;
+            }
+        }
+    }
+
+    return bestSF;
+}
+
+/**
+ * 
+ */
+uint8_t lora::pickBestSF(){
 	calculateSFsuccessRate();
 	uint8_t bestSF = 7;
-	bestSF = getBestSF(SF_successRate);
+	bestSF = UCB();
 	
 	SetSF(bestSF);
-}
-
-/**
- * 
- */
-uint8_t lora::getBestSF(float SF_successRateSentFreq[]){
-	float maxSuccessRate = 0;
-	uint8_t bestSF = currentSF != 7 ? 7 : 8;
-
-	for(uint8_t i = 0;i < Number_Of_SF; i++) {
-		if((i+7) != currentSF && SF_successRateSentFreq[i] > maxSuccessRate){
-			maxSuccessRate = SF_successRateSentFreq[i];
-			bestSF = i+7;
-		}		
-  	}
-
 	return bestSF;
 }
+
 
 /**
  * 
  */
 void lora::clearSFsuccessRate(){
-	//musi byt volane pri zmene frekvencie Em alebo Register
-	for (uint8_t  i = 0; i < Number_Of_SF; i++)
-	{
-		SF_allSentMsg[i] = 0;
- 		SF_OkSentMsg[i] = 0;
+    for (uint8_t  i = 0; i < Number_Of_SF; i++)
+    {
+        SF_allSentMsg[i] = 0;
+        SF_OkSentMsg[i] = 0;
         SF_successRate[i] = 0;
-	}
+    }
+
+    allSentMessages = 0;
 }
 
 /**
  * 
  */
-bool lora::setSFmessageCount(uint8_t successfullySent, uint8_t frequency){
-	SF_OkSentMsg[currentSF - 7] += successfullySent;
-	SF_allSentMsg[currentSF - 7] += 1;	
+bool lora::messageSuccesfullySendOnSF(bool successfullySent){
+	if(successfullySent)
+		SF_OkSentMsg[currentSF - 7] += successfullySent;
 	
+	SF_allSentMsg[currentSF - 7] += 1;	
+	allSentMessages += 1;
 	return true;
 }
 
 /**
  * 
  */
-uint8_t lora::getMaximumTransmissionTime(float bw, uint8_t sf, uint8_t cr){
+uint8_t lora::getMaximumTransmissionTime(float bw, uint8_t sf){
 	uint8_t len = getMaxLen(bw, sf);
 
 	float tsymbol = pow(2,sf) / (bw * 1000);
@@ -426,7 +442,7 @@ uint8_t lora::getMaximumTransmissionTime(float bw, uint8_t sf, uint8_t cr){
 		payloadSymbNb = temp;
 	}
 	
-	float payload = 8 + max(payloadSymbNb*cr, 0);
+	float payload = 8 + max(payloadSymbNb*maxCR_DC, 0);
 	payload *= tsymbol;
 
 	return (payload + tpreamble);
@@ -496,6 +512,7 @@ unsigned long lora::GetDutyWait() {
  */
 bool lora::Send(uint8_t* data, uint8_t &len) {
 	uint32_t time = 0;
+	bool message_sent = false;
 
 	if (_sendtime < millis()) {
 		Serial.println();
@@ -504,13 +521,18 @@ bool lora::Send(uint8_t* data, uint8_t &len) {
 
 		if(SendMessage(TYPE_DATA_UP, ACK_OPT, data, len)){
 			time = WaitDutyCycle(GetMessageLength(len), bwDC, sfDC, crDC, TYPE_DATA_UP);
+			message_sent = true;
 		}else{
-			time = getMaximumTransmissionTime(bwDC, sfDC, crDC);
+			time = getMaximumTransmissionTime(bwDC, sfDC);
 		}
 
 		_sendtime = millis() +  time;
 
-		Receive(data,len);
+		if (message_sent)
+		{
+			Receive(data,len);
+		}
+		
 		return true;
 	}
 
@@ -529,25 +551,29 @@ bool lora::Send(uint8_t* data, uint8_t &len) {
  */
 bool lora::Send(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len) {
   uint32_t time = 0;
+  bool message_sent = false;
 
   if (_sendtime < millis()) {//if current time is more than next available sendtime
 		LoadNetworkData(type, GetMessageLength(len));//calculates next available send time based on time it will take to send the message and what is the frequency range duty cycle
 
 		if(SendMessage(type,ack,data,len)){
 			time = WaitDutyCycle(GetMessageLength(len), bwDC, sfDC, crDC, type);
+			message_sent = true;
 		}else{
-			time = getMaximumTransmissionTime(bwDC, sfDC, crDC);
+			time = getMaximumTransmissionTime(bwDC, sfDC);
 		}
 
 		_sendtime = millis() +  time;
 
 		if (ack == ACK_MAN) {
 			uint8_t temp = len;
-			if (Receive(data,len) == false) {
-				len = temp;				
+			if (message_sent == false || Receive(data,len) == false) {
+				len = temp;		
+				messageSuccesfullySendOnSF(false);		
 				return SendEmergency(data,len);
 			}
-		} else if (ack == ACK_OPT) {
+			messageSuccesfullySendOnSF(true);
+		} else if (ack == ACK_OPT && message_sent) {
 			Receive(data,len);
 		} else {
 			len = 0;
@@ -571,19 +597,25 @@ bool lora::Send(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len) {
  */
 bool lora::SendHello(uint8_t* data, uint8_t &len) {
 	uint32_t time = 0;
+	bool message_sent = false;
 
 	if (_sendtime < millis()) {
 		LoadNetworkData(TYPE_HELLO_UP,len);
 
 		if(SendMessage(TYPE_HELLO_UP, ACK_OPT, data, len)){
 			time = WaitDutyCycle(len, bwDC, sfDC, crDC, TYPE_HELLO_UP);
+			message_sent = true;
 		}else{
-			time = getMaximumTransmissionTime(bwDC, sfDC, crDC);
+			time = getMaximumTransmissionTime(bwDC, sfDC);
 		}
 
 		_sendtime = millis() +  time;
 
-		Receive(data,len);
+		if (message_sent)
+		{
+			Receive(data,len);
+		}
+		
 		return true;
 	}
 	return false;
@@ -593,6 +625,7 @@ bool lora::SendEmergency(uint8_t* data, uint8_t &len) {
 	uint8_t iteration = 0;
 	uint32_t time = 0;
 	uint8_t temp = len;
+	bool message_sent = false;
 	Serial.print("Delay for duty cycle before emergency: ");
 	Serial.println(GetDutyWait());
 	delay(GetDutyWait());
@@ -603,15 +636,18 @@ bool lora::SendEmergency(uint8_t* data, uint8_t &len) {
 
 			if(SendMessage(TYPE_EMER_UP, ACK_MAN, data, temp)){
 				time = WaitDutyCycle(GetMessageLength(temp), bwDC, sfDC, crDC, TYPE_EMER_UP);
+				message_sent = true;
 			}
 
 			_sendtime = millis() + time;
 
 			Serial.println("Sending emergency and receiving...");
 
-			if (Receive(data,len)) {
+			if (message_sent == true && Receive(data,len)) {
+				messageSuccesfullySendOnSF(true);
 				return true;
 			}
+			messageSuccesfullySendOnSF(false);
 			iteration++;
 		} else {
 			Serial.print("Duty  cycle: ");
@@ -619,6 +655,8 @@ bool lora::SendEmergency(uint8_t* data, uint8_t &len) {
 			Serial.println("  -Emergency");
 			delay(GetDutyWait());
 		}
+	    message_sent = false;
+		pickBestSF();
 	} while(iteration < 3);
 	
 	//Emergency messages weren't acknowledged. Starting the registration process again.
@@ -660,6 +698,10 @@ bool lora::Register(uint8_t* buffer, uint8_t &len) {
 			waitPacketSent();
 			Serial.println("ITERATOR < 3");
 			recValue = Receive(buffer, len);
+			if(recValue == false)
+				messageSuccesfullySendOnSF(false);
+			else
+				messageSuccesfullySendOnSF(true);
 		} else {
 			// Pseudo-random sequence
 			switch (regiterator) {
@@ -671,9 +713,14 @@ bool lora::Register(uint8_t* buffer, uint8_t &len) {
 			send(payload, sizeof(payload));
 			waitPacketSent();
 			recValue = Receive(buffer, len);
+			if(recValue == false)
+				messageSuccesfullySendOnSF(false);
+			else
+				messageSuccesfullySendOnSF(true);
 		}
 
 		regiterator++;
+		pickBestSF();
 		delay(1000);
 
 		if (regiterator == 7) {
