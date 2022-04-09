@@ -72,10 +72,11 @@
 #define SF10 0x03
 #define SF11 0x04
 #define SF12 0x05
-#define Number_Of_SF 0x06
+#define Number_Of_SF 0x06//total number of spreading factors used in LoRa@FIIT protocol
 
-#define Emergncy_freq 0x00
-#define Register_freq 0x01
+#define Max_Confidence_Bound 0x0A//maximal confidence bound for UCB to ensure exploration 
+#define SF_indexer 0x07//number of lowest spreading factor used in LoRa@FIIT protocol
+#define Default_SF 0x07//number of lowest spreading factor used in LoRa@FIIT protocol
 
 // Coding rate
 const byte CR_5 = B00000010; // 4/5
@@ -132,18 +133,6 @@ struct netconfig {
 
 class lora : private RH_RF95
 {
-  unsigned int SF_allSentMsg[Number_Of_SF];
-  unsigned int SF_OkSentMsg[Number_Of_SF];
-  float SF_successRate[Number_Of_SF];
-  unsigned int allSentMessages;
-
-  uint8_t currentSF;
-
-  float bwDC;
-	uint8_t percentageDC;
-	uint8_t crDC;
-  uint8_t maxCR_DC = 8;
-	uint8_t sfDC;
 
   public:
     /** Parameters are Slave-Select pin, Interrupt pin for Tx and Rx done, Reset pin */
@@ -202,6 +191,29 @@ class lora : private RH_RF95
 
     bool _manual;
 
+    /** Stores number of all uplink messages send on each Spreading Factor*/
+    unsigned int SF_allSentMsg[Number_Of_SF];
+    /** Stores number of all uplink messages successfully send and decoded by gateway on each Spreading Factor*/
+    unsigned int SF_OkSentMsg[Number_Of_SF];
+    /** Stores the ration of successfully send messages to all send messages for each Spreading Factor*/
+    float SF_successRate[Number_Of_SF];
+    /** Holds the number of all uplink messages with required ACK or the opening of recieve window send since modem was turned On*/
+    unsigned int allSentMessages;
+
+    /** Holds the value of Spreading Factor currently used to send uplink message on*/
+    uint8_t currentSF;
+
+    /** Holds the current bandwidth on which uplink messages are being send*/
+    float bwDC;
+    /** Holds the current duty cycle percentage as defined by ETSI regulations on which uplink messages are being send*/
+    uint8_t percentageDC;
+    /** Holds the current coding rate on which uplink messages are being send*/
+    uint8_t crDC;
+    /** Holds the maximum possible value of Coding Rate*/
+    uint8_t maxCR_DC = 8;
+    /** Holds the current spreading factor on which uplink messages are being send*/
+    uint8_t sfDC;
+
     /** Diffie-Hellman key */
     DH dhkey1;
 
@@ -235,34 +247,31 @@ class lora : private RH_RF95
     /** Returns the message length */
     uint8_t GetMessageLength(uint8_t len);
 
-    /** Returns the best SF for transmission*/
+    /** Returns the best Spreading Factor for transmission */
     uint8_t pickBestSF();
 
-    /** Returns the best SF for given frequency*/
-    uint8_t getBestSF(float SF_successRateSentFreq[]);
-
-    /** Returns the SF success rate */
+    /** Returns the Spreading Factor success rate */
     void calculateSFsuccessRate();
 
-     /** Returns the SF success rate based on number of succesfully sent messages on that SF to number of all messages sent on that SF*/
+    /** Returns the Spreading Factor success rate based on number of succesfully sent messages on that Spreading Factor to number of all messages sent on that Spreading Factor */
     float getSFsuccessRate(uint8_t okSentMessages, uint8_t allSentMessages);
 
-    /** sets message rate for SF, number of succesfully send messages and number of all messages sent*/
+    /** sets message rate for Spreading Factor, number of succesfully send messages and number of all messages sent */
     bool messageSuccesfullySendOnSF(bool successfullySent);
 
-    /** Returns maximum transmission time for packet, maximum time for how long medium will be used by other device when transmission is detected*/
+    /** Returns maximum transmission time for packet, maximum time for how long medium will be used by other device when transmission is detected */
     uint8_t getMaximumTransmissionTime(float bw, uint8_t sf);
 
-    /** Returns maximum length of application data in a packet based on communication parameters*/
+    /** Returns maximum length of application data in a packet based on communication parameters */
     uint8_t getMaxLen(float bw, uint8_t sf);
 
-    /** sets success rate for each SF to 0 for Emergency frequency*/
+    /** sets success rate for each Spreading Factor to zero */
     void clearSFsuccessRate();
 
     /** Common sending function */
     bool SendMessage(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len);
 
-    /** Upper Confidence Bound algorithmic function to determine the best SF to send the next message**/
+    /** Upper Confidence Bound algorithmic function to determine the best Spreading Factor to send the next message on */
     uint8_t UCB();
 };
 

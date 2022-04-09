@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['netconfig_130',['netconfig',['../structnetconfig.html',1,'']]]
+  ['netconfig_0',['netconfig',['../structnetconfig.html',1,'']]]
 ];

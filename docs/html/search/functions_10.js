@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['validaterxbuf_208',['validateRxBuf',['../classRH__RF95.html#a09086214734986feeb1e647a7820b615',1,'RH_RF95']]]
+  ['ucb_0',['UCB',['../classlora.html#ac11f58a17524f1c57be4f0695c4462a4',1,'lora']]]
 ];

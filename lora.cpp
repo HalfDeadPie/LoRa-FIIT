@@ -334,7 +334,10 @@ uint8_t lora::GetMessageLength(uint8_t len) {
 }
 
 /**
- * 
+ * Calculates success rate for a given spreading factor
+ * @param okSentMessages
+ * @param allSentMessages
+ * @return 
  */
 float lora::getSFsuccessRate(uint8_t okSentMessages, uint8_t allSentMessages){
 	if(allSentMessages == 0)
@@ -344,7 +347,7 @@ float lora::getSFsuccessRate(uint8_t okSentMessages, uint8_t allSentMessages){
 }
 
 /**
- * 
+ * Sets the success rate for each SF based on number of messages sent succesfuly to the number of all messages sent
  */
 void lora::calculateSFsuccessRate(){
 	SF_successRate[SF7] = getSFsuccessRate(SF_OkSentMsg[SF7], SF_allSentMsg[SF7]);
@@ -356,38 +359,43 @@ void lora::calculateSFsuccessRate(){
 }
 
 /**
- * 
+ * Picks the best SF for sending the next message. Utilizes machine-learning Upper Confidence Bound (UCB) algorithm.
+ * @return 
  */
 uint8_t lora::UCB(){
     float SFConfidenceBound;
     float confidence_interval;
-    float max_SF_bound = 0;
-    uint8_t bestSF = 0;
+    float max_SF_confidence_bound = 0;
+    uint8_t bestSF = Default_SF;
 
     if(allSentMessages == 0)
-        return 7;
+        return bestSF;
 
     for (uint8_t  i = 0; i < Number_Of_SF; i++)
     {
         if(SF_allSentMsg[i] > 0){
             confidence_interval = sqrt(3/2 * log(allSentMessages + 1) / SF_allSentMsg[i]);
             SFConfidenceBound = SF_successRate[i] + confidence_interval;
-            if(SFConfidenceBound > max_SF_bound){
-                max_SF_bound = SFConfidenceBound;
-                bestSF = i;
-            }
         }
+		else 
+			SFConfidenceBound = Max_Confidence_Bound;
+
+		if(SFConfidenceBound > max_SF_confidence_bound){
+			max_SF_confidence_bound = SFConfidenceBound;
+			bestSF = i + SF_indexer;
+		}
     }
 
     return bestSF;
 }
 
 /**
- * 
+ * Sets the best SF for sending a message
+ * @return
  */
 uint8_t lora::pickBestSF(){
 	calculateSFsuccessRate();
-	uint8_t bestSF = 7;
+	uint8_t bestSF = Default_SF;
 	bestSF = UCB();
 	
 	SetSF(bestSF);
@@ -396,7 +404,7 @@ uint8_t lora::pickBestSF(){
 
 
 /**
- * 
+ * Clears previously recorder success rate for each SF
  */
 void lora::clearSFsuccessRate(){
     for (uint8_t  i = 0; i < Number_Of_SF; i++)
@@ -410,19 +418,24 @@ void lora::clearSFsuccessRate(){
 }
 
 /**
- * 
+ * Increments the number of send messages on currently used SF
+ * @param successfullySent
+ * @return
  */
 bool lora::messageSuccesfullySendOnSF(bool successfullySent){
 	if(successfullySent)
-		SF_OkSentMsg[currentSF - 7] += successfullySent;
+		SF_OkSentMsg[currentSF - SF_indexer] += 1;
 	
-	SF_allSentMsg[currentSF - 7] += 1;	
+	SF_allSentMsg[currentSF - SF_indexer] += 1;	
 	allSentMessages += 1;
 	return true;
 }
 
 /**
- * 
+ * Returns maximum transmission time of a packet on the channel based on communications parameters
+ * @param bw
+ * @param sf
+ * @return
  */
 uint8_t lora::getMaximumTransmissionTime(float bw, uint8_t sf){
 	uint8_t len = getMaxLen(bw, sf);
@@ -449,7 +462,10 @@ uint8_t lora::getMaximumTransmissionTime(float bw, uint8_t sf){
 }
 
 /**
- * 
+ * Returns maximal packet length based on communications parameters
+ * @param bw
+ * @param sf
+ * @return
  */
 uint8_t lora::getMaxLen(float bw, uint8_t sf){
 	uint8_t maxLen = 255;
@@ -533,12 +549,12 @@ bool lora::Send(uint8_t* data, uint8_t &len) {
 			Receive(data,len);
 		}
 		
-		return true;
+		return message_sent;
 	}
 
 	Serial.print("Duty cycle: ");
 	Serial.println(GetDutyWait());
-	return false;
+	return message_sent;
 }
 
 /**
@@ -573,20 +589,20 @@ bool lora::Send(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len) {
 				return SendEmergency(data,len);
 			}
 			messageSuccesfullySendOnSF(true);
-		} else if (ack == ACK_OPT && message_sent) {
+		} else if (ack == ACK_OPT && message_sent == true) {
 			Receive(data,len);
 		} else {
 			len = 0;
-			return true;
+			return message_sent;
 		}
 
-		return true;
+		return message_sent;
 	}
 
   Serial.print("Duty cycle: ");
   Serial.print(GetDutyWait());
   Serial.println(" -with Mandatory ACK");
-  return false;
+  return message_sent;
 }
 
 /**
@@ -616,11 +632,17 @@ bool lora::SendHello(uint8_t* data, uint8_t &len) {
 			Receive(data,len);
 		}
 		
-		return true;
+		return message_sent;
 	}
-	return false;
+	return message_sent;
 }
 
+/**
+ * Send emergency message
+ * @param data
+ * @param len
+ * @return
+ */
 bool lora::SendEmergency(uint8_t* data, uint8_t &len) {
 	uint8_t iteration = 0;
 	uint32_t time = 0;
@@ -645,7 +667,7 @@ bool lora::SendEmergency(uint8_t* data, uint8_t &len) {
 
 			if (message_sent == true && Receive(data,len)) {
 				messageSuccesfullySendOnSF(true);
-				return true;
+				return message_sent;
 			}
 			messageSuccesfullySendOnSF(false);
 			iteration++;
@@ -663,7 +685,7 @@ bool lora::SendEmergency(uint8_t* data, uint8_t &len) {
 	LoadNetworkData(TYPE_REG_UP,20);
 	len = 20;
 	Register(data, len);
-	return false;
+	return message_sent;
 }
 
 /**
@@ -1127,6 +1149,7 @@ uint32_t lora::LoadNetworkData(uint8_t type, uint8_t len) {
  * @param bw
  * @param sf
  * @param cr
+ * @param type
  * @return
  */
 uint32_t lora::WaitDutyCycle(uint8_t len, float bw, uint8_t sf, uint8_t cr, uint8_t type) {
@@ -1175,6 +1198,11 @@ void lora::SetManual(bool value) {
 	_manual = value;
 }
 
+/**
+ * Check message sequence number
+ * @param seq
+ * @return
+ */
 bool lora::CheckSequence(uint16_t seq) {
 	if (_sequence_number > 65535 - SEQ_DIFF) {
 		return (seq > _sequence_number || seq <= _sequence_number + SEQ_DIFF);
