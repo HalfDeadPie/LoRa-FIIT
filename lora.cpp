@@ -617,7 +617,7 @@ bool lora::SendHello(uint8_t* data, uint8_t &len) {
 
 	if (_sendtime < millis()) {
 		LoadNetworkData(TYPE_HELLO_UP,len);
-
+	
 		if(SendMessage(TYPE_HELLO_UP, ACK_OPT, data, len)){
 			time = WaitDutyCycle(len, bwDC, sfDC, crDC, TYPE_HELLO_UP);
 			message_sent = true;
@@ -655,10 +655,15 @@ bool lora::SendEmergency(uint8_t* data, uint8_t &len) {
 	do {
 	  if (_sendtime < millis()) {
 			LoadNetworkData(TYPE_EMER_UP, GetMessageLength(temp));
+			if(iteration > 0)
+				pickBestSF();
 
 			if(SendMessage(TYPE_EMER_UP, ACK_MAN, data, temp)){
 				time = WaitDutyCycle(GetMessageLength(temp), bwDC, sfDC, crDC, TYPE_EMER_UP);
 				message_sent = true;
+			}
+			else{
+				time = getMaximumTransmissionTime(bwDC, sfDC);
 			}
 
 			_sendtime = millis() + time;
@@ -678,7 +683,6 @@ bool lora::SendEmergency(uint8_t* data, uint8_t &len) {
 			delay(GetDutyWait());
 		}
 	    message_sent = false;
-		pickBestSF();
 	} while(iteration < 3);
 	
 	//Emergency messages weren't acknowledged. Starting the registration process again.
@@ -695,35 +699,45 @@ bool lora::SendEmergency(uint8_t* data, uint8_t &len) {
  * @return
  */
 bool lora::Register(uint8_t* buffer, uint8_t &len) {
-	SetDefault();
+	SetDefault();	
+	bool message_sent = false;
 	uint8_t payload[20];
 	setDEVID(payload);
 	setType(payload, TYPE_REG_UP);
 	setType(payload, ACK_MAN);
 	dhkey1.sendDHA(&payload[4]);
+	bool recValue;
 
 	#ifdef DEBUG
 	  Serial.println("Sending register..."); delay(10);
 	#endif
 
-  send(payload, sizeof(payload));
+  message_sent = send(payload, sizeof(payload));
 	waitPacketSent();
 	_sendtime = 0;
 	_sequence_number = 0;
 	int regiterator = 0;
-	bool recValue = Receive(buffer, len);
+
+	if(message_sent == true)
+		recValue = Receive(buffer, len);
+	else
+		recValue = false;
 	
 	while(!recValue)
 	{
 		if (regiterator < 3) {
-			send(payload, sizeof(payload));
+			message_sent = send(payload, sizeof(payload));
 			waitPacketSent();
 			Serial.println("ITERATOR < 3");
-			recValue = Receive(buffer, len);
-			if(recValue == false)
-				messageSuccesfullySendOnSF(false);
-			else
-				messageSuccesfullySendOnSF(true);
+			if(message_sent == true){
+				recValue = Receive(buffer, len);
+				if(recValue == false)
+					messageSuccesfullySendOnSF(false);
+				else
+					messageSuccesfullySendOnSF(true);
+			}				
+			else 
+				recValue = false;
 		} else {
 			// Pseudo-random sequence
 			switch (regiterator) {
@@ -732,13 +746,17 @@ bool lora::Register(uint8_t* buffer, uint8_t &len) {
 				case 5: setFrequency(REG_CHANNEL_4); break;
 				case 6: setFrequency(REG_CHANNEL_5); break;
 			}
-			send(payload, sizeof(payload));
+			message_sent = send(payload, sizeof(payload));
 			waitPacketSent();
-			recValue = Receive(buffer, len);
-			if(recValue == false)
-				messageSuccesfullySendOnSF(false);
-			else
-				messageSuccesfullySendOnSF(true);
+			if(message_sent == true){
+				recValue = Receive(buffer, len);
+				if(recValue == false)
+					messageSuccesfullySendOnSF(false);
+				else
+					messageSuccesfullySendOnSF(true);
+			}				
+			else 
+				recValue = false;
 		}
 
 		regiterator++;
