@@ -77,6 +77,29 @@ uint32_t DH::pow_mod_p(uint32_t a, uint32_t b, uint32_t P) {
   return t;
 }
 
+uint32_t DH::pow_mod_p2(uint32_t a, uint32_t b, uint32_t P) {
+    uint32_t t = a;
+    uint32_t arr[100];
+    int index  = 0;
+
+    while(b > 0){
+        arr[index] = b;
+        index++;
+        b /= 2;
+    }
+
+    for(int i = index - 2; i >= 0; i--){
+       t = mul_mod_p(t, t, P);
+
+       if(arr[i] % 2){
+           t = mul_mod_p(t,a,P);
+       }
+    }
+
+    return t;
+}
+
+
 /**
  * Generates random 32 unsigned integer
  * @return
@@ -108,7 +131,7 @@ void DH::sendDHA(uint8_t* publicKey) {
 	*privatekey = randomInt32();
 	uint32_t* publicpointer = (uint32_t*) publicKey;
 	uint32_t* presharedpointer = (uint32_t*) &presharedkey[0];
-	*publicpointer = pow_mod_p(*generatorpointer, *privatekey, *presharedpointer);
+	*publicpointer = pow_mod_p2(*generatorpointer, *privatekey, *presharedpointer);
 	
 	// Round2
 	presharedkey[0] = PRIME4;
@@ -118,7 +141,7 @@ void DH::sendDHA(uint8_t* publicKey) {
 	privatekey++;
 	*privatekey = randomInt32();
 	publicpointer++;
-	*publicpointer = pow_mod_p(*generatorpointer, *privatekey, *presharedpointer);
+	*publicpointer = pow_mod_p2(*generatorpointer, *privatekey, *presharedpointer);
 	
 	// Round3
 	presharedkey[0] = PRIME8;
@@ -128,7 +151,7 @@ void DH::sendDHA(uint8_t* publicKey) {
 	privatekey++;
 	*privatekey = randomInt32();
 	publicpointer++;
-	*publicpointer = pow_mod_p(*generatorpointer, *privatekey, *presharedpointer);
+	*publicpointer = pow_mod_p2(*generatorpointer, *privatekey, *presharedpointer);
 	
 	// Round4
 	presharedkey[0] = PRIME12;
@@ -138,7 +161,7 @@ void DH::sendDHA(uint8_t* publicKey) {
 	privatekey++;
 	*privatekey = randomInt32();
 	publicpointer++;
-	*publicpointer = pow_mod_p(*generatorpointer, *privatekey, *presharedpointer);
+	*publicpointer = pow_mod_p2(*generatorpointer, *privatekey, *presharedpointer);
 }
 
 /**
@@ -157,7 +180,7 @@ void DH::getSessionKey(uint8_t* neighborPublic) {
 	presharedkey[3] = PRIME3;
 	
 	uint32_t* presharedpointer = (uint32_t*) &presharedkey[0];
-	*sessionkey = pow_mod_p(*publicpointer, privatekey, *presharedpointer);
+	*sessionkey = pow_mod_p2(*publicpointer, privatekey, *presharedpointer);
 	
 	// Round2
 	sessionkey++;
@@ -167,7 +190,7 @@ void DH::getSessionKey(uint8_t* neighborPublic) {
 	presharedkey[1] = PRIME5;
 	presharedkey[2] = PRIME6;
 	presharedkey[3] = PRIME7;
-	*sessionkey = pow_mod_p(*publicpointer, privatekey, *presharedpointer);
+	*sessionkey = pow_mod_p2(*publicpointer, privatekey, *presharedpointer);
 	
 	// Round3
 	sessionkey++;
@@ -177,7 +200,7 @@ void DH::getSessionKey(uint8_t* neighborPublic) {
 	presharedkey[1] = PRIME9;
 	presharedkey[2] = PRIME10;
 	presharedkey[3] = PRIME11;
-	*sessionkey = pow_mod_p(*publicpointer, privatekey, *presharedpointer);
+	*sessionkey = pow_mod_p2(*publicpointer, privatekey, *presharedpointer);
 	
 	// Round4
 	sessionkey++;
@@ -187,7 +210,7 @@ void DH::getSessionKey(uint8_t* neighborPublic) {
 	presharedkey[1] = PRIME13;
 	presharedkey[2] = PRIME14;
 	presharedkey[3] = PRIME15;	
-	*sessionkey = pow_mod_p(*publicpointer, privatekey, *presharedpointer);
+	*sessionkey = pow_mod_p2(*publicpointer, privatekey, *presharedpointer);
 }
 
 /**

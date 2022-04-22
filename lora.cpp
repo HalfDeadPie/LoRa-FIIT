@@ -14,6 +14,10 @@ lora::lora(uint8_t slaveSelectPin, uint8_t interruptPin, uint8_t resetPin)
 	_resetPin = resetPin;
 }
 
+ unsigned long lora::Getsendtime(){
+	 return _sendtime;
+ }
+
 /**
  * Reset and initialization
  */
@@ -49,8 +53,9 @@ void lora::On() {
 void lora::SetDefault() {
 	SetFrequency(REG_CHANNEL_1);
 	SetBW(DEFAULT_BW);
-	SetSF(DEFAULT_SF);
-	SetCR(DEFAULT_CR);
+	SetSF(DEFAULT_SF);	
+	SetCR(DEFAULT_CR);	
+	return;
 }
 
 /**
@@ -122,10 +127,9 @@ bool lora::SetBW(float bandwidth) {
  * @param codingrate
  */
 bool lora::SetCR(uint8_t codingrate) {
-  #ifdef DEBUG
-    Serial.print("Setting CR: ");
-    Serial.println(codingrate);
-  #endif
+	
+	Serial.print("Setting CR0: ");	
+	Serial.println(codingrate);
 
   bool state = false;
   byte value = spiRead(RH_RF95_REG_1D_MODEM_CONFIG1);
@@ -166,6 +170,7 @@ bool lora::SetPW(uint8_t power, bool useRF0) {
     Serial.println(power);
   #endif
 	setTxPower(power, useRF0);
+	return false;
 }
 
 /**
@@ -179,7 +184,6 @@ bool lora::SetSF(uint8_t spreadingfactor) {
     Serial.println(spreadingfactor);
   #endif
 
-  bool state = false;
   byte value = spiRead(RH_RF95_REG_1E_MODEM_CONFIG2);
   byte value_mobile = spiRead(RH_RF95_REG_26_MODEM_CONFIG3);
   byte sf;
@@ -231,6 +235,7 @@ bool lora::SetSF(uint8_t spreadingfactor) {
 	
   value &= B00001111;
   value |= sf;
+
   spiWrite(RH_RF95_REG_1E_MODEM_CONFIG2, value);
   value = RHSPIDriver::spiRead(RH_RF95_REG_1E_MODEM_CONFIG2);
   value &= B11110000;
@@ -240,7 +245,8 @@ bool lora::SetSF(uint8_t spreadingfactor) {
 
     return true;
   }
-  return state;
+
+  return false;
 }
 
 /**
@@ -278,6 +284,8 @@ bool lora::SendMessage(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len) {
 	datapointer += len;//jump to seq
 	uint16_t* seqpointer = (uint16_t*) datapointer;
 	_sequence_number++;
+	Serial.println("sekvencne cislo");
+	Serial.println(_sequence_number);
 	*seqpointer = _sequence_number;
 	
 	datapointer += sizeof(uint16_t);
@@ -367,14 +375,16 @@ uint8_t lora::UCB(){
     float confidence_interval;
     float max_SF_confidence_bound = 0;
     uint8_t bestSF = Default_SF;
+	Serial.println("Default SF, should be 7");
+	Serial.println(bestSF);
 
-    if(allSentMessages == 0)
+    if(_allSentMessages == 0)
         return bestSF;
 
     for (uint8_t  i = 0; i < Number_Of_SF; i++)
     {
         if(SF_allSentMsg[i] > 0){
-            confidence_interval = sqrt(3/2 * log(allSentMessages + 1) / SF_allSentMsg[i]);
+            confidence_interval = sqrt(3/2 * log(_allSentMessages + 1) / SF_allSentMsg[i]);
             SFConfidenceBound = SF_successRate[i] + confidence_interval;
         }
 		else 
@@ -385,6 +395,9 @@ uint8_t lora::UCB(){
 			bestSF = i + SF_indexer;
 		}
     }
+	
+	Serial.println("best SF, should be 7 and 12");
+	Serial.println(bestSF);
 
     return bestSF;
 }
@@ -411,10 +424,10 @@ void lora::clearSFsuccessRate(){
     {
         SF_allSentMsg[i] = 0;
         SF_OkSentMsg[i] = 0;
-        SF_successRate[i] = 0;
+        SF_successRate[i] = 0.0;
     }
 
-    allSentMessages = 0;
+    _allSentMessages = 0;
 }
 
 /**
@@ -423,11 +436,16 @@ void lora::clearSFsuccessRate(){
  * @return
  */
 bool lora::messageSuccesfullySendOnSF(bool successfullySent){
-	if(successfullySent)
+	if(successfullySent){
 		SF_OkSentMsg[currentSF - SF_indexer] += 1;
+	}		
+
+		Serial.println("Setting SF successrate for SF:");
+		Serial.println(currentSF - SF_indexer);
+		Serial.println();
 	
 	SF_allSentMsg[currentSF - SF_indexer] += 1;	
-	allSentMessages += 1;
+	_allSentMessages += 1;
 	return true;
 }
 
@@ -577,6 +595,8 @@ bool lora::Send(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len) {
 			message_sent = true;
 		}else{
 			time = getMaximumTransmissionTime(bwDC, sfDC);
+			Serial.println("Time");
+			Serial.println(time);
 		}
 
 		_sendtime = millis() +  time;
@@ -593,6 +613,9 @@ bool lora::Send(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len) {
 			Receive(data,len);
 		} else {
 			len = 0;
+			Serial.println("cad detected message not sent");
+			Serial.println("return value");
+			Serial.println(message_sent);
 			return message_sent;
 		}
 
@@ -699,30 +722,35 @@ bool lora::SendEmergency(uint8_t* data, uint8_t &len) {
  * @return
  */
 bool lora::Register(uint8_t* buffer, uint8_t &len) {
-	SetDefault();	
+	Serial.println("ruuning register function");
+	SetDefault();		
 	bool message_sent = false;
 	uint8_t payload[20];
 	setDEVID(payload);
+
 	setType(payload, TYPE_REG_UP);
 	setType(payload, ACK_MAN);
+	
 	dhkey1.sendDHA(&payload[4]);
-	bool recValue;
+	bool recValue = false;
 
 	#ifdef DEBUG
 	  Serial.println("Sending register..."); delay(10);
 	#endif
 
-  message_sent = send(payload, sizeof(payload));
+    message_sent = send(payload, sizeof(payload));
 	waitPacketSent();
+
 	_sendtime = 0;
 	_sequence_number = 0;
 	int regiterator = 0;
 
-	if(message_sent == true)
+	if(message_sent == true){
 		recValue = Receive(buffer, len);
+	}		
 	else
 		recValue = false;
-	
+
 	while(!recValue)
 	{
 		if (regiterator < 3) {
@@ -767,6 +795,7 @@ bool lora::Register(uint8_t* buffer, uint8_t &len) {
 			return false;
 		}
 	}
+	
 	return true;
 }
 
@@ -873,11 +902,14 @@ bool lora::ProcessMessage(uint8_t* dataout, uint8_t &len, bool reg) {
 	} else {
 	  _sequence_number = *sequencepointer;
 	}
+	Serial.println("prijate sekvcencne cislo");
+	Serial.println(_sequence_number);
 
 	payload += sizeof(uint16_t);
 	uint32_t* micpointer = (uint32_t*) payload;
 
   // 4 bytes for netlen appLen and seq
+  Serial.println("pointers");
   Serial.println(*decryptedpointer);
   Serial.println(networklen + applen + 4);
   Serial.println(*micpointer);
@@ -1200,6 +1232,9 @@ uint32_t lora::WaitDutyCycle(uint8_t len, float bw, uint8_t sf, uint8_t cr, uint
 	} else if(percentageDC == 10) {
 		timeOffAir = ((payload + tpreamble) / 0.1) - (payload + tpreamble);
 	}
+
+	Serial.println("Time of air from waitDC:");
+	Serial.println(timeOffAir);
 
 	return timeOffAir;
 }
