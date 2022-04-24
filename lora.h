@@ -172,6 +172,7 @@ class lora : private RH_RF95
 
     bool SendHello(uint8_t* data, uint8_t &len);
     bool SendEmergency(uint8_t* data, uint8_t &len);
+    unsigned long Getsendtime();
 
     /** Turn on receiving */
     bool Receive(uint8_t* buf, uint8_t &len);
@@ -192,13 +193,13 @@ class lora : private RH_RF95
     bool _manual;
 
     /** Stores number of all uplink messages send on each Spreading Factor*/
-    unsigned int SF_allSentMsg[Number_Of_SF];
+    unsigned int SF_allSentMsg[7];
     /** Stores number of all uplink messages successfully send and decoded by gateway on each Spreading Factor*/
-    unsigned int SF_OkSentMsg[Number_Of_SF];
+    unsigned int SF_OkSentMsg[7];
     /** Stores the ration of successfully send messages to all send messages for each Spreading Factor*/
-    float SF_successRate[Number_Of_SF];
+    float SF_successRate[7];
     /** Holds the number of all uplink messages with required ACK or the opening of recieve window send since modem was turned On*/
-    unsigned int allSentMessages;
+    unsigned int _allSentMessages;
 
     /** Holds the value of Spreading Factor currently used to send uplink message on*/
     uint8_t currentSF;
@@ -222,6 +223,8 @@ class lora : private RH_RF95
 
     /** Available sendtime */
     unsigned long _sendtime;
+
+    uint8_t testvar;
 
     /** Set the device ID in message */
     void setDEVID(uint8_t* message);
@@ -247,8 +250,14 @@ class lora : private RH_RF95
     /** Returns the message length */
     uint8_t GetMessageLength(uint8_t len);
 
-    /** Returns the best Spreading Factor for transmission */
-    uint8_t pickBestSF();
+    /** Returns the 0 if Spreading Factor does not change otherwise it returns maximum transmission time on a given SF */
+    uint8_t pickBestSF(float bw);
+
+    /** Sets minimal CAD duration based on given Spreading Factor */
+    void SetCADDuration(uint8_t spreadingfactor);
+
+    /** Returns minimal CAD duration based on given Spreading Factor and Bandwidth */
+    unsigned long lora::CalculateCadDuration(uint8_t spreadingfactor, float bw);
 
     /** Returns the Spreading Factor success rate */
     void calculateSFsuccessRate();

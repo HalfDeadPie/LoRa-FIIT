@@ -43,7 +43,7 @@ void lora::On() {
   // If you are using RFM95/96/97/98 modules which uses the PA_BOOST transmitter pin, then 
   // you can set transmitter powers from 5 to 23 dBm:
   setTxPower(INIT_TX_POWER, false);	
-  setCADTimeout(20);
+  //setCADTimeout(20);
   clearSFsuccessRate();
 }
 
@@ -240,6 +240,8 @@ bool lora::SetSF(uint8_t spreadingfactor) {
   value = RHSPIDriver::spiRead(RH_RF95_REG_1E_MODEM_CONFIG2);
   value &= B11110000;
 
+  SetCADDuration(spreadingfactor);
+
   if (value == sf) {
 	currentSF = spreadingfactor;
 
@@ -248,6 +250,36 @@ bool lora::SetSF(uint8_t spreadingfactor) {
 
   return false;
 }
+
+/**
+ * Sets minimal CAD duration based on given Spreading Factor
+ * @param spreadingfactor
+ * @return
+ */
+void lora::SetCADDuration(uint8_t spreadingfactor) {
+  unsigned long timeout = CalculateCadDuration(spreadingfactor, bwDC);
+  
+  setCADTimeout(timeout);
+  
+  return;
+}
+
+/**
+ * Calculates minimal CAD duration based on given Spreading Factor and Bandwidth settings
+ * @return
+ */
+unsigned long lora::CalculateCadDuration(uint8_t spreadingfactor, float bw) {
+  unsigned long timeout = 50;
+  float minimal_duration = pow(2,spreadingfactor);
+  minimal_duration += 32;
+  minimal_duration /=  bw;   
+  minimal_duration = round(minimal_duration);
+
+  timeout = minimal_duration + 5;
+
+  return timeout;
+}
+
 
 /**
  * Set the frequency
@@ -406,13 +438,19 @@ uint8_t lora::UCB(){
  * Sets the best SF for sending a message
  * @return
  */
-uint8_t lora::pickBestSF(){
-	calculateSFsuccessRate();
+uint8_t lora::pickBestSF(float bw){
 	uint8_t bestSF = Default_SF;
 	bestSF = UCB();
+
 	
-	SetSF(bestSF);
-	return bestSF;
+	if(bestSF == currentSF){
+		SetSF(bestSF);
+		return getMaximumTransmissionTime(bw, sfDC);
+	}
+	else{
+		SetSF(bestSF);
+		return 0;
+	}
 }
 
 
@@ -426,7 +464,7 @@ void lora::clearSFsuccessRate(){
         SF_OkSentMsg[i] = 0;
         SF_successRate[i] = 0.0;
     }
-
+	
     _allSentMessages = 0;
 }
 
@@ -446,6 +484,8 @@ bool lora::messageSuccesfullySendOnSF(bool successfullySent){
 	
 	SF_allSentMsg[currentSF - SF_indexer] += 1;	
 	_allSentMessages += 1;
+	
+	calculateSFsuccessRate();
 	return true;
 }
 
@@ -557,7 +597,7 @@ bool lora::Send(uint8_t* data, uint8_t &len) {
 			time = WaitDutyCycle(GetMessageLength(len), bwDC, sfDC, crDC, TYPE_DATA_UP);
 			message_sent = true;
 		}else{
-			time = getMaximumTransmissionTime(bwDC, sfDC);
+			time = pickBestSF(bwDC);
 		}
 
 		_sendtime = millis() +  time;
@@ -594,9 +634,7 @@ bool lora::Send(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len) {
 			time = WaitDutyCycle(GetMessageLength(len), bwDC, sfDC, crDC, type);
 			message_sent = true;
 		}else{
-			time = getMaximumTransmissionTime(bwDC, sfDC);
-			Serial.println("Time");
-			Serial.println(time);
+			time = pickBestSF(bwDC);
 		}
 
 		_sendtime = millis() +  time;
@@ -645,7 +683,7 @@ bool lora::SendHello(uint8_t* data, uint8_t &len) {
 			time = WaitDutyCycle(len, bwDC, sfDC, crDC, TYPE_HELLO_UP);
 			message_sent = true;
 		}else{
-			time = getMaximumTransmissionTime(bwDC, sfDC);
+			time = pickBestSF(bwDC);
 		}
 
 		_sendtime = millis() +  time;
@@ -679,7 +717,7 @@ bool lora::SendEmergency(uint8_t* data, uint8_t &len) {
 	  if (_sendtime < millis()) {
 			LoadNetworkData(TYPE_EMER_UP, GetMessageLength(temp));
 			if(iteration > 0)
-				pickBestSF();
+				time = pickBestSF(bwDC);
 
 			if(SendMessage(TYPE_EMER_UP, ACK_MAN, data, temp)){
 				time = WaitDutyCycle(GetMessageLength(temp), bwDC, sfDC, crDC, TYPE_EMER_UP);
@@ -788,7 +826,7 @@ bool lora::Register(uint8_t* buffer, uint8_t &len) {
 		}
 
 		regiterator++;
-		pickBestSF();
+		pickBestSF(bwDC);
 		delay(1000);
 
 		if (regiterator == 7) {
