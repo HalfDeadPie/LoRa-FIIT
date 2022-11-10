@@ -1,7 +1,7 @@
 #ifndef lora_h
 #define lora_h
 
-#define DEBUG
+#define DEBUG 1
 
 #include <SPI.h>
 #include "RH_RF95.h"
@@ -66,6 +66,18 @@
 #define REC_E_PW 0xE0
 #define REC_E_SF 0xF0
 
+#define SF7 0x00
+#define SF8 0x01
+#define SF9 0x02
+#define SF10 0x03
+#define SF11 0x04
+#define SF12 0x05
+#define Number_Of_SF 0x06//total number of spreading factors used in LoRa@FIIT protocol
+
+#define Max_Confidence_Bound 0x0A//maximal confidence bound for UCB to ensure exploration 
+#define SF_indexer 0x07//number of lowest spreading factor used in LoRa@FIIT protocol
+#define Default_SF 0x07//number of lowest spreading factor used in LoRa@FIIT protocol
+
 // Coding rate
 const byte CR_5 = B00000010; // 4/5
 const byte CR_6 = B00000100; // 4/6
@@ -121,6 +133,7 @@ struct netconfig {
 
 class lora : private RH_RF95
 {
+
   public:
     /** Parameters are Slave-Select pin, Interrupt pin for Tx and Rx done, Reset pin */
     lora(uint8_t slaveSelectPin, uint8_t interruptPin, uint8_t resetPin);
@@ -159,6 +172,7 @@ class lora : private RH_RF95
 
     bool SendHello(uint8_t* data, uint8_t &len);
     bool SendEmergency(uint8_t* data, uint8_t &len);
+    unsigned long Getsendtime();
 
     /** Turn on receiving */
     bool Receive(uint8_t* buf, uint8_t &len);
@@ -170,13 +184,36 @@ class lora : private RH_RF95
     unsigned long GetDutyWait();
 
     /** Duty cycle handler, returns time on air for the message. This should be used if _manual = true because of respecting the duty cycle */
-    uint32_t WaitDutyCycle(uint8_t len, float bw, uint8_t sf, uint8_t cr, uint8_t percentage);
+    uint32_t WaitDutyCycle(uint8_t len, float bw, uint8_t sf, uint8_t cr, uint8_t type);
 
   private:
     /** Reset pin - used for reset in On() */
     uint8_t _resetPin;
 
     bool _manual;
+
+    /** Stores number of all uplink messages send on each Spreading Factor*/
+    unsigned int SF_allSentMsg[7];
+    /** Stores number of all uplink messages successfully send and decoded by gateway on each Spreading Factor*/
+    unsigned int SF_OkSentMsg[7];
+    /** Stores the ration of successfully send messages to all send messages for each Spreading Factor*/
+    float SF_successRate[7];
+    /** Holds the number of all uplink messages with required ACK or the opening of recieve window send since modem was turned On*/
+    unsigned int _allSentMessages;
+
+    /** Holds the value of Spreading Factor currently used to send uplink message on*/
+    uint8_t currentSF;
+
+    /** Holds the current bandwidth on which uplink messages are being send*/
+    float bwDC;
+    /** Holds the current duty cycle percentage as defined by ETSI regulations on which uplink messages are being send*/
+    uint8_t percentageDC;
+    /** Holds the current coding rate on which uplink messages are being send*/
+    uint8_t crDC;
+    /** Holds the maximum possible value of Coding Rate*/
+    uint8_t maxCR_DC = 8;
+    /** Holds the current spreading factor on which uplink messages are being send*/
+    uint8_t sfDC;
 
     /** Diffie-Hellman key */
     DH dhkey1;
@@ -186,6 +223,8 @@ class lora : private RH_RF95
 
     /** Available sendtime */
     unsigned long _sendtime;
+
+    uint8_t testvar;
 
     /** Set the device ID in message */
     void setDEVID(uint8_t* message);
@@ -211,8 +250,38 @@ class lora : private RH_RF95
     /** Returns the message length */
     uint8_t GetMessageLength(uint8_t len);
 
+    /** Returns the 0 if Spreading Factor does not change otherwise it returns maximum transmission time on a given SF */
+    uint8_t pickBestSF(float bw);
+
+    /** Sets minimal CAD duration based on given Spreading Factor */
+    void SetCADDuration(uint8_t spreadingfactor);
+
+    /** Returns minimal CAD duration based on given Spreading Factor and Bandwidth */
+    unsigned long lora::CalculateCadDuration(uint8_t spreadingfactor, float bw);
+
+    /** Returns the Spreading Factor success rate */
+    void calculateSFsuccessRate();
+
+    /** Returns the Spreading Factor success rate based on number of succesfully sent messages on that Spreading Factor to number of all messages sent on that Spreading Factor */
+    float getSFsuccessRate(uint8_t okSentMessages, uint8_t allSentMessages);
+
+    /** sets message rate for Spreading Factor, number of succesfully send messages and number of all messages sent */
+    bool messageSuccesfullySendOnSF(bool successfullySent);
+
+    /** Returns maximum transmission time for packet, maximum time for how long medium will be used by other device when transmission is detected */
+    uint8_t getMaximumTransmissionTime(float bw, uint8_t sf);
+
+    /** Returns maximum length of application data in a packet based on communication parameters */
+    uint8_t getMaxLen(float bw, uint8_t sf);
+
+    /** sets success rate for each Spreading Factor to zero */
+    void clearSFsuccessRate();
+
     /** Common sending function */
-    void SendMessage(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len);
+    bool SendMessage(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len);
+
+    /** Upper Confidence Bound algorithmic function to determine the best Spreading Factor to send the next message on */
+    uint8_t UCB();
 };
 
 #endif

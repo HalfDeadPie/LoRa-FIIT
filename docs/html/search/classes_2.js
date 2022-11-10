@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['lora_128',['lora',['../classlora.html',1,'']]]
+  ['lora_0',['lora',['../classlora.html',1,'']]]
 ];
