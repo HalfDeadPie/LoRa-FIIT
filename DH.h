@@ -37,6 +37,7 @@ class DH {
 	  DH();
 	  uint32_t mul_mod_p(uint32_t a, uint32_t b, uint32_t P);
 	  uint32_t pow_mod_p(uint32_t a, uint32_t b, uint32_t P);
+	  uint32_t pow_mod_p2(uint32_t a, uint32_t b, uint32_t P);
 	  uint32_t randomInt32();
     void getSessionKey(uint8_t* neighborPublic);
 	  void printSessionKey();
