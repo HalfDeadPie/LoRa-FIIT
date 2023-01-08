@@ -148,10 +148,10 @@ class lora : private RH_RF95
     bool SetBW(float bandwidth);
 
     /** Set the coding rate - 4/parameter */
-    bool SetCR(uint8_t codingrate);
+    bool SetCR(uint8_t codingRate);
 
     /** Set the spreading factor */
-    bool SetSF(uint8_t spreadingfactor);
+    bool SetSF(uint8_t spreadingFactor);
 
     /** Set the frequency */
     bool SetFrequency(float frequency);
@@ -224,8 +224,6 @@ class lora : private RH_RF95
     /** Available sendtime */
     unsigned long _sendtime;
 
-    uint8_t testvar;
-
     /** Set the device ID in message */
     void setDEVID(uint8_t* message);
 
@@ -251,22 +249,22 @@ class lora : private RH_RF95
     uint8_t GetMessageLength(uint8_t len);
 
     /** Returns the 0 if Spreading Factor does not change otherwise it returns maximum transmission time on a given SF */
-    uint8_t pickBestSF(float bw);
+    uint8_t PickBestSF(float bw);
 
     /** Sets minimal CAD duration based on given Spreading Factor */
-    void SetCADDuration(uint8_t spreadingfactor);
+    void SetCADDuration(uint8_t spreadingFactor);
 
     /** Returns minimal CAD duration based on given Spreading Factor and Bandwidth */
-    unsigned long lora::CalculateCadDuration(uint8_t spreadingfactor, float bw);
+    unsigned long lora::CalculateCadDuration(uint8_t spreadingFactor, float bw);
 
     /** Returns the Spreading Factor success rate */
-    void calculateSFsuccessRate();
+    void CalculateSFSuccessRate();
 
     /** Returns the Spreading Factor success rate based on number of succesfully sent messages on that Spreading Factor to number of all messages sent on that Spreading Factor */
     float getSFsuccessRate(uint8_t okSentMessages, uint8_t allSentMessages);
 
     /** sets message rate for Spreading Factor, number of succesfully send messages and number of all messages sent */
-    bool messageSuccesfullySendOnSF(bool successfullySent);
+    bool MessageSuccesfullySentOnSF(bool successfullySent);
 
     /** Returns maximum transmission time for packet, maximum time for how long medium will be used by other device when transmission is detected */
     uint8_t getMaximumTransmissionTime(float bw, uint8_t sf);
@@ -275,7 +273,7 @@ class lora : private RH_RF95
     uint8_t getMaxLen(float bw, uint8_t sf);
 
     /** sets success rate for each Spreading Factor to zero */
-    void clearSFsuccessRate();
+    void ClearSFsuccessRate();
 
     /** Common sending function */
     bool SendMessage(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len);
