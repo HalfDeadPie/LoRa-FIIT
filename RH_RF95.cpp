@@ -3,7 +3,7 @@
 // Copyright (C) 2011 Mike McCauley
 // $Id: RH_RF95.cpp,v 1.14 2017/03/04 00:59:41 mikem Exp $
 
-#include <RH_RF95.h>
+#include "RH_RF95.h"
 
 // Interrupt vectors for the 3 Arduino interrupt pins
 // Each interrupt can be handled by a different instance of RH_RF95, allowing you to have
@@ -250,9 +250,12 @@ bool RH_RF95::send(const uint8_t* data, uint8_t len)
     waitPacketSent(); // Make sure we dont interrupt an outgoing message
     setModeIdle();
 
-    if (!waitCAD()) 
-	return false;  // Check channel activity
-
+    if (!waitCAD()){//channel is clear when func returns true
+        Serial.println("Channel activity detected");
+        return false;  // Check channel activity
+    }
+    Serial.println("Channel activity not detected sending data");
+	   
     // Position at the beginning of the FIFO
     spiWrite(RH_RF95_REG_0D_FIFO_ADDR_PTR, 0);
     // The headers
@@ -417,6 +420,7 @@ void RH_RF95::setPreambleLength(uint16_t bytes)
 
 bool RH_RF95::isChannelActive()
 {
+    Serial.println("Running in CAD");
     // Set mode RHModeCad
     if (_mode != RHModeCad)
     {
@@ -424,6 +428,7 @@ bool RH_RF95::isChannelActive()
         spiWrite(RH_RF95_REG_40_DIO_MAPPING1, 0x80); // Interrupt on CadDone
         _mode = RHModeCad;
     }
+
 
     while (_mode == RHModeCad)
         YIELD;
