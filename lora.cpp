@@ -175,13 +175,13 @@ bool lora::SetPW(uint8_t power, bool useRF0) {
 
 /**
  * Set the spreading factor
- * @param spreadingfactor
+ * @param spreadingFactor
  * @return
  */
 bool lora::SetSF(uint8_t spreadingFactor) {
   #ifdef DEBUG
     Serial.print("Setting SF: ");
-    Serial.println(spreadingfactor);
+    Serial.println(spreadingFactor);
   #endif
 
   byte value = spiRead(RH_RF95_REG_1E_MODEM_CONFIG2);
@@ -189,7 +189,7 @@ bool lora::SetSF(uint8_t spreadingFactor) {
   byte sf;
   bool mobile;
 
-	switch (spreadingfactor) {
+	switch (spreadingFactor) {
 		case 6:
 		  sf = SF_6;
 		  mobile = false;
@@ -240,10 +240,10 @@ bool lora::SetSF(uint8_t spreadingFactor) {
   value = RHSPIDriver::spiRead(RH_RF95_REG_1E_MODEM_CONFIG2);
   value &= B11110000;
 
-  SetCADDuration(spreadingfactor);
+  SetCADDuration(spreadingFactor);
 
   if (value == sf) {
-	currentSF = spreadingfactor;
+	currentSF = spreadingFactor;
 
     return true;
   }
@@ -253,11 +253,11 @@ bool lora::SetSF(uint8_t spreadingFactor) {
 
 /**
  * Sets minimal CAD duration based on given Spreading Factor
- * @param spreadingfactor
+ * @param spreadingFactor
  * @return
  */
 void lora::SetCADDuration(uint8_t spreadingFactor) {
-  unsigned long timeout = CalculateCadDuration(spreadingfactor, bwDC);
+  unsigned long timeout = CalculateCadDuration(spreadingFactor, bwDC);
   
   setCADTimeout(timeout);
   
@@ -270,7 +270,7 @@ void lora::SetCADDuration(uint8_t spreadingFactor) {
  */
 unsigned long lora::CalculateCadDuration(uint8_t spreadingFactor, float bw) {
   unsigned long timeout = 50;
-  float minimal_duration = pow(2,spreadingfactor);
+  float minimal_duration = pow(2, spreadingFactor);
   minimal_duration += 32;
   minimal_duration /=  bw;   
   minimal_duration = round(minimal_duration);
