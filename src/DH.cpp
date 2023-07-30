@@ -13,7 +13,7 @@
  * Step 7: 9 is the shared secret.
  */
 
-#include "include/DH.h"
+#include "DH.h"
 
 /** Public variable representing the shared secret key. */
 uint32_t Alice_k, Bob_k;

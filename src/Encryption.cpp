@@ -1,4 +1,4 @@
-#include "include/Encryption.h"
+#include "Encryption.h"
 
 /**
  * Encrypts data payload using XXTEA algorithm
