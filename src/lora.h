@@ -255,7 +255,7 @@ class lora : private RH_RF95
     void SetCADDuration(uint8_t spreadingFactor);
 
     /** Returns minimal CAD duration based on given Spreading Factor and Bandwidth */
-    unsigned long lora::CalculateCadDuration(uint8_t spreadingFactor, float bw);
+    unsigned long CalculateCadDuration(uint8_t spreadingFactor, float bw);
 
     /** Returns the Spreading Factor success rate */
     void CalculateSFSuccessRate();

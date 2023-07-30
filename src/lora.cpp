@@ -1,4 +1,4 @@
-#include "include/lora.h"
+#include "lora.h"
 #include <math.h>
 
 /**
@@ -624,8 +624,15 @@ bool lora::Send(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len) {
   uint32_t time = 0;
   bool message_sent = false;
 
+  Serial.print("_sendtime: ");
+  Serial.println(_sendtime);
+  Serial.print("milis: ");
+  Serial.println(millis());
+
   if (_sendtime < millis()) {//if current time is more than next available sendtime
 		LoadNetworkData(type, GetMessageLength(len));//calculates next available send time based on time it will take to send the message and what is the frequency range duty cycle
+
+		Serial.println("Network Data Loaded");
 
 		if (SendMessage(type,ack,data,len)) {
 			time = WaitDutyCycle(GetMessageLength(len), bwDC, sfDC, crDC, type);
@@ -649,7 +656,7 @@ bool lora::Send(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len) {
 		} else {
 			len = 0;
 			Serial.println("cad detected message not sent");
-			Serial.println("return value");
+			Serial.print("Message sent: ");
 			Serial.println(message_sent);
 			return message_sent;
 		}
@@ -660,6 +667,8 @@ bool lora::Send(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len) {
   Serial.print("Duty cycle: ");
   Serial.print(GetDutyWait());
   Serial.println(" -with Mandatory ACK");
+  Serial.print("Message sent: ");
+  Serial.println(message_sent);
   return message_sent;
 }
 
@@ -776,6 +785,10 @@ bool lora::Register(uint8_t* buffer, uint8_t &len) {
 	waitPacketSent();
 
 	_sendtime = 0;
+
+  Serial.print("Sentime during registration set to: ");
+  Serial.println(_sendtime);
+
 	_sequence_number = 0;
 	int regiterator = 0;
 
