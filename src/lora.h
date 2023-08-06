@@ -216,6 +216,12 @@ class lora : private RH_RF95
     /** Holds the current spreading factor on which uplink messages are being send*/
     uint8_t sfDC;
 
+    uint8_t pwDC;
+
+    float freqDataDC;
+    uint8_t freqEmerDC;
+    uint8_t freqRegDC;
+
     /** Diffie-Hellman key */
     DH dhkey1;
 

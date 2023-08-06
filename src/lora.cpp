@@ -245,8 +245,7 @@ bool lora::SetSF(uint8_t spreadingFactor) {
   #endif
 
   if (value == sf) {
-	currentSF = spreadingFactor;
-
+	  currentSF = spreadingFactor;
     return true;
   }
 
@@ -318,9 +317,11 @@ bool lora::SendMessage(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len) {
 	datapointer += len;//jump to seq
 	uint16_t* seqpointer = (uint16_t*) datapointer;
 	_sequence_number++;
-	Serial.println("sekvencne cislo");
+	
+  Serial.print("Sequence number: ");
 	Serial.println(_sequence_number);
-	*seqpointer = _sequence_number;
+	
+  *seqpointer = _sequence_number;
 	
 	datapointer += sizeof(uint16_t);
 	uint32_t* micpointer = (uint32_t*) datapointer;
@@ -348,6 +349,15 @@ bool lora::SendMessage(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len) {
 	Encryption::encrypt(&payload[4], actuallen + paddinglen, dhkey1.session_private_key);
 	Serial.println("Waiting for packet to complete...");
 	delay(10);
+
+  Serial.print(currentSF);
+  Serial.print(",");
+  Serial.print(freqDataDC);
+  Serial.print(",");
+  Serial.print(pwDC);
+  Serial.print(",");
+  Serial.println(sfDC);
+
 	sendOk = send(payload, 4 + actuallen + paddinglen);
 	waitPacketSent();
 	
@@ -631,13 +641,17 @@ bool lora::Send(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len) {
   uint32_t time = 0;
   bool message_sent = false;
 
+  /*
   Serial.print("_sendtime: ");
   Serial.println(_sendtime);
   Serial.print("milis: ");
   Serial.println(millis());
+  */
 
-  if (_sendtime < millis()) {//if current time is more than next available sendtime
-		LoadNetworkData(type, GetMessageLength(len));//calculates next available send time based on time it will take to send the message and what is the frequency range duty cycle
+  // if current time is more than next available sendtime
+  if (_sendtime < millis()) { 
+    // calculates next available send time based on time it will take to send the message and what is the frequency range duty cycle
+		LoadNetworkData(type, GetMessageLength(len));
 
 		Serial.println("Network Data Loaded");
 
@@ -682,11 +696,8 @@ bool lora::Send(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len) {
 		return message_sent;
 	}
 
-  Serial.print("Duty cycle: ");
-  Serial.print(GetDutyWait());
-  Serial.println(" -with Mandatory ACK");
-  Serial.print("Message sent: ");
-  Serial.println(message_sent);
+  Serial.print("Remaining duty cycle: ");
+  Serial.println(GetDutyWait());
   return message_sent;
 }
 
@@ -987,17 +998,19 @@ bool lora::ProcessMessage(uint8_t* dataout, uint8_t &len, bool reg) {
 	} else {
 	  _sequence_number = *sequencepointer;
 	}
-	Serial.println("prijate sekvcencne cislo");
+	Serial.print("Received sequence number with value: ");
 	Serial.println(_sequence_number);
 
 	payload += sizeof(uint16_t);
 	uint32_t* micpointer = (uint32_t*) payload;
 
   // 4 bytes for netlen appLen and seq
-  Serial.println("pointers");
+  /*
+  Serial.println("Pointers:");
   Serial.println(*decryptedpointer);
   Serial.println(networklen + applen + 4);
   Serial.println(*micpointer);
+  */
 
 	if (Encryption::checkMIC(decryptedpointer, networklen + applen + 4, *micpointer) == false)
 	{
@@ -1234,6 +1247,7 @@ uint32_t lora::LoadNetworkData(uint8_t type, uint8_t len) {
 		float freqdiff = freq / 10.0;
 		freqdiff += 863;
 		SetFrequency(freqdiff);
+    freqDataDC = freqdiff;
 
 		if ((865.0 <= freqdiff && freqdiff <= 868.6) || (869.7 <= freqdiff && freqdiff <= 870.0)) {
 			percentageDC = 1;
@@ -1272,6 +1286,7 @@ uint32_t lora::LoadNetworkData(uint8_t type, uint8_t len) {
 		}
 
 		SetPW(pw, false);
+    pwDC = pw;
 	}
 
 	return 0;
