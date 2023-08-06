@@ -350,7 +350,7 @@ bool lora::SendMessage(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len) {
 	Serial.println("Waiting for packet to complete...");
 	delay(10);
 
-  Serial.print(currentSF);
+  Serial.print(_sequence_number);
   Serial.print(",");
   Serial.print(freqDataDC);
   Serial.print(",");
@@ -696,8 +696,9 @@ bool lora::Send(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len) {
 		return message_sent;
 	}
 
-  Serial.print("Remaining duty cycle: ");
-  Serial.println(GetDutyWait());
+  Serial.print("Next uplink message ready for transmission in less than ");
+  Serial.print(GetDutyWait());
+  Serial.println(" milliseconds");
   return message_sent;
 }
 
@@ -1333,7 +1334,7 @@ uint32_t lora::WaitDutyCycle(uint8_t len, float bw, uint8_t sf, uint8_t cr, uint
 		timeOffAir = ((payload + tpreamble) / 0.1) - (payload + tpreamble);
 	}
 
-	Serial.println("Time of air from waitDC:");
+	Serial.print("Time of air from waitDC: ");
 	Serial.println(timeOffAir);
 
 	return timeOffAir;
