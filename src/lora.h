@@ -17,6 +17,7 @@
 #define SEQ_DIFF 10
 
 #define CAD_ENABLED 0
+#define MAB_UCB_ENABLED 0
 
 // Hardcoded device ID value
 /*
@@ -29,8 +30,8 @@
 #define REG_CHANNEL_1  866.1 // 866.10MHz
 #define REG_CHANNEL_2  863.8 // 866.40MHz
 #define REG_CHANNEL_3 866.5 // 866.70MHz
-#define  REG_CHANNEL_4  866.7 // 867.00MHz
-#define  REG_CHANNEL_5  866.9 // 868.00MHz
+#define REG_CHANNEL_4  866.7 // 867.00MHz
+#define REG_CHANNEL_5  866.9 // 868.00MHz
 
 #define TYPE_REG_UP 0x00
 #define TYPE_DATA_UP 0x20
@@ -264,7 +265,9 @@ class lora : private RH_RF95
     float getSFsuccessRate(uint8_t okSentMessages, uint8_t allSentMessages);
 
     /** sets message rate for Spreading Factor, number of succesfully send messages and number of all messages sent */
-    bool MessageSuccesfullySentOnSF(bool successfullySent);
+    #if MAB_UCB_ENABLED
+      bool MessageSuccesfullySentOnSF(bool successfullySent);
+    #endif
 
     /** Returns maximum transmission time for packet, maximum time for how long medium will be used by other device when transmission is detected */
     uint8_t getMaximumTransmissionTime(float bw, uint8_t sf);

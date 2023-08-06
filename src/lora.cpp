@@ -432,14 +432,15 @@ uint8_t lora::UCB() {
     }
   }
 	
-	Serial.println("best SF, should be 7 and 12");
+	Serial.print("And the Award Goes to the Best SF (value between 7 and 12): ");
 	Serial.println(bestSF);
 
   return bestSF;
 }
 
 /**
- * Sets the best SF for sending a message
+ * Sets the best SF for sending a message using an UCB algorithm
+ * @param float bw, bandwidth
  * @return
  */
 uint8_t lora::PickBestSF(float bw) {
@@ -475,21 +476,23 @@ void lora::ClearSFsuccessRate() {
  * @param successfullySent
  * @return
  */
-bool lora::MessageSuccesfullySentOnSF(bool successfullySent) {
-	if (successfullySent) {
-		SF_OkSentMsg[currentSF - SF_indexer] += 1;
-	}		
+#if MAB_UCB_ENABLED
+  bool lora::MessageSuccesfullySentOnSF(bool successfullySent)
+  {
+    if (successfullySent) {
+      SF_OkSentMsg[currentSF - SF_indexer] += 1;
+    }		
 
-  Serial.println("Setting SF successrate for SF:");
-  Serial.println(currentSF - SF_indexer);
-  Serial.println();
-	
-	SF_allSentMsg[currentSF - SF_indexer] += 1;	
-	_allSentMessages += 1;
-	
-	CalculateSFSuccessRate();
-	return true;
-}
+    Serial.print("Setting SF success rate for SF: ");
+    Serial.println(currentSF - SF_indexer);
+    
+    SF_allSentMsg[currentSF - SF_indexer] += 1;	
+    _allSentMessages += 1;
+    
+    CalculateSFSuccessRate();
+    return true;
+  }
+#endif
 
 /**
  * Returns maximum transmission time of a packet on the channel based on communications parameters
@@ -597,7 +600,9 @@ bool lora::Send(uint8_t* data, uint8_t &len) {
 			time = WaitDutyCycle(GetMessageLength(len), bwDC, sfDC, crDC, TYPE_DATA_UP);
 			message_sent = true;
 		} else {
-			time = PickBestSF(bwDC);
+      #if MAB_UCB_ENABLED
+			  time = PickBestSF(bwDC);
+      #endif
 		}
 
 		_sendtime = millis() +  time;
@@ -640,7 +645,9 @@ bool lora::Send(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len) {
 			time = WaitDutyCycle(GetMessageLength(len), bwDC, sfDC, crDC, type);
 			message_sent = true;
 		} else {
-			time = PickBestSF(bwDC);
+      #if MAB_UCB_ENABLED
+			  time = PickBestSF(bwDC);
+      #endif
 		}
 
 		_sendtime = millis() + time;
@@ -648,11 +655,18 @@ bool lora::Send(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len) {
 		if (ack == ACK_MAN) {
 			uint8_t temp = len;
 			if (message_sent == false || Receive(data,len) == false) {
-				len = temp;		
-				MessageSuccesfullySentOnSF(false);		
-				return SendEmergency(data,len);
+				len = temp;
+
+        #if MAB_UCB_ENABLED
+				  MessageSuccesfullySentOnSF(false);		
+        #endif
+
+        return SendEmergency(data,len);
 			}
-			MessageSuccesfullySentOnSF(true);
+
+      #if MAB_UCB_ENABLED
+			  MessageSuccesfullySentOnSF(true);
+      #endif 
 		} else if (ack == ACK_OPT && message_sent == true) {
 			Receive(data,len);
 		} else {
@@ -693,7 +707,9 @@ bool lora::SendHello(uint8_t* data, uint8_t &len) {
 			time = WaitDutyCycle(len, bwDC, sfDC, crDC, TYPE_HELLO_UP);
 			message_sent = true;
 		} else {
-			time = PickBestSF(bwDC);
+			#if MAB_UCB_ENABLED
+        time = PickBestSF(bwDC);
+      #endif
 		}
 
 		_sendtime = millis() +  time;
@@ -725,9 +741,12 @@ bool lora::SendEmergency(uint8_t* data, uint8_t &len) {
 	do {
 	  if (_sendtime < millis()) {
 			LoadNetworkData(TYPE_EMER_UP, GetMessageLength(temp));
-			if (iteration > 0) {
-				time = PickBestSF(bwDC);
-      }
+
+      #if MAB_UCB_ENABLED
+        if (iteration > 0) {
+          time = PickBestSF(bwDC);
+        }
+      #endif
 
 			if (SendMessage(TYPE_EMER_UP, ACK_MAN, data, temp)) {
 				time = WaitDutyCycle(GetMessageLength(temp), bwDC, sfDC, crDC, TYPE_EMER_UP);
@@ -741,11 +760,18 @@ bool lora::SendEmergency(uint8_t* data, uint8_t &len) {
 			Serial.println("Sending emergency and receiving...");
 
 			if (message_sent == true && Receive(data,len)) {
-				MessageSuccesfullySentOnSF(true);
+        #if MAB_UCB_ENABLED
+				  MessageSuccesfullySentOnSF(true);
+        #endif
+
 				return message_sent;
 			}
-			MessageSuccesfullySentOnSF(false);
-			iteration++;
+
+      #if MAB_UCB_ENABLED
+			  MessageSuccesfullySentOnSF(false);
+			#endif
+
+      iteration++;
 		} else {
 			Serial.print("Duty  cycle: ");
 			Serial.print(GetDutyWait());
@@ -811,7 +837,10 @@ bool lora::Register(uint8_t* buffer, uint8_t &len) {
 
 			if (message_sent == true) {
 				recValue = Receive(buffer, len);
-				MessageSuccesfullySentOnSF(recValue);
+        
+        #if MAB_UCB_ENABLED
+				  MessageSuccesfullySentOnSF(recValue);
+        #endif
 			}	else { 
 				recValue = false;
       }
@@ -829,15 +858,23 @@ bool lora::Register(uint8_t* buffer, uint8_t &len) {
 			
       if (message_sent == true) {
 				recValue = Receive(buffer, len);
-				MessageSuccesfullySentOnSF(recValue);
+
+        #if MAB_UCB_ENABLED
+				  MessageSuccesfullySentOnSF(recValue);
+        #endif
+
 			}	else {
         recValue = false;
       }
 		}
 
 		regiterator++;
-		PickBestSF(bwDC);
-		delay(1000);
+
+    #if MAB_UCB_ENABLED
+		  PickBestSF(bwDC);
+    #endif
+		
+    delay(1000);
 
 		if (regiterator == 7) {
 			return false;
