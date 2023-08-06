@@ -1,8 +1,6 @@
 #ifndef lora_h
 #define lora_h
 
-#define DEBUG 1
-
 #include <SPI.h>
 #include "RH_RF95.h"
 #include "DH.h"
@@ -17,6 +15,8 @@
 #define DEFAULT_CR 5
 #define FREQ_ARRAY_SIZE 10
 #define SEQ_DIFF 10
+
+#define CAD_ENABLED 0
 
 // Hardcoded device ID value
 /*

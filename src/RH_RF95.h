@@ -1,9 +1,11 @@
 // RH_RF95.h
 
 //Device ID for LoRa@FIIT
-#define DEVICE_ID1 0x41
-#define DEVICE_ID2 0x41
-#define DEVICE_ID3 0x41
+#define DEVICE_ID1 0xB2
+#define DEVICE_ID2 0xBB
+#define DEVICE_ID3 0xBB
+
+#define CAD_ENABLED 0
 
 // Definitions for HopeRF LoRa radios per:
 // http://www.hoperf.com/upload/rf/RFM95_96_97_98W.pdf
@@ -13,7 +15,7 @@
 // Copyright (C) 2014 Mike McCauley
 // $Id: RH_RF95.h,v 1.16 2017/03/04 00:59:41 mikem Exp $
 // 
-// edited by: Simon Stefunko for LoRa@FIIT
+// edi ted by: Simon Stefunko for LoRa@FIIT
 #ifndef RH_RF95_h
 #define RH_RF95_h
 

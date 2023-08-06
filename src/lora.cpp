@@ -240,7 +240,9 @@ bool lora::SetSF(uint8_t spreadingFactor) {
   value = RHSPIDriver::spiRead(RH_RF95_REG_1E_MODEM_CONFIG2);
   value &= B11110000;
 
-  SetCADDuration(spreadingFactor);
+  #if CAD_ENABLED
+    SetCADDuration(spreadingFactor);
+  #endif
 
   if (value == sf) {
 	currentSF = spreadingFactor;
@@ -641,7 +643,7 @@ bool lora::Send(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len) {
 			time = PickBestSF(bwDC);
 		}
 
-		_sendtime = millis() +  time;
+		_sendtime = millis() + time;
 
 		if (ack == ACK_MAN) {
 			uint8_t temp = len;
@@ -654,11 +656,13 @@ bool lora::Send(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len) {
 		} else if (ack == ACK_OPT && message_sent == true) {
 			Receive(data,len);
 		} else {
-			len = 0;
-			Serial.println("cad detected message not sent");
-			Serial.print("Message sent: ");
-			Serial.println(message_sent);
-			return message_sent;
+      #if CAD_ENABLED
+        len = 0;
+        Serial.println("CAD detected message not sent");
+        Serial.print("Message sent: ");
+        Serial.println(message_sent);
+        return message_sent;
+      #endif
 		}
 
 		return message_sent;
@@ -765,7 +769,7 @@ bool lora::SendEmergency(uint8_t* data, uint8_t &len) {
  * @return
  */
 bool lora::Register(uint8_t* buffer, uint8_t &len) {
-	Serial.println("ruuning register function");
+	Serial.println("Running register function");
 	SetDefault();		
 	bool message_sent = false;
 	uint8_t payload[20];
