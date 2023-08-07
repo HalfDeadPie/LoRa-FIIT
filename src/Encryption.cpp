@@ -8,7 +8,7 @@
  */
 void Encryption::encrypt(uint8_t *payload, uint8_t size, uint8_t *keyByte) {
   uint32_t *v = (uint32_t *) payload;
-  int n = size/ sizeof(uint32_t);
+  uint32_t n = size / sizeof(uint32_t);
   uint32_t *key = (uint32_t *) keyByte;
 
   uint32_t y, z, sum;
@@ -21,7 +21,7 @@ void Encryption::encrypt(uint8_t *payload, uint8_t size, uint8_t *keyByte) {
     sum += DELTA;
     e = (sum >> 2) & 3;
 
-    for (p=0; p<n-1; p++) {
+    for (p=0; p < n-1; p++) {
         y = v[p+1];
         z = v[p] += MX;
     }
