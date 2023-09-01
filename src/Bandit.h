@@ -1,6 +1,8 @@
 #ifndef Bandit_h
 #define Bandit_h
 
+#include <stdint.h> 
+
 #define MIN_SF 0x07
 #define MAX_SF 0x12
 #define NUM_SF 0x06
