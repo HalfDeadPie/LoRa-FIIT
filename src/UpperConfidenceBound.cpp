@@ -1,8 +1,13 @@
 #include "UpperConfidenceBound.h"
 
-void UpperConfidenceBound::init(uint8_t defaultSF)
+UpperConfidenceBound::UpperConfidenceBound()
 {
-  this->bestSF = defaultSF;
+  totalPulls = 0;
+
+  for (uint8_t idx = 0; idx < NUM_SF; idx++) {
+    rewards[idx] = 0;
+    pulls[idx] = 0;
+  }
 }
 
 /**
@@ -10,57 +15,44 @@ void UpperConfidenceBound::init(uint8_t defaultSF)
  * @return uint8_t
  */
 uint8_t UpperConfidenceBound::pull() {
-  float SFConfidenceBound;
-  float confidenceInterval;
-  float maxSFConfidenceBound = 0;
+  uint8_t bestSF = MIN_SF;
+  int32_t maxUcbScore = ucbScore(MIN_SF);
 
-  if (allUplinkMsgs == 0) {
-    return bestSF;
-  }
+  for (uint8_t sf = MIN_SF + 1; sf <= MAX_SF; sf++) {
+    int32_t score = ucbScore(sf);
 
-  for (uint8_t idx = 0; idx < SF_ARRAY_SIZE; idx++)
-  {
-    if (sfSentMsgs[idx] > 0) {
-      confidenceInterval = sqrt(3/2 * log(allUplinkMsgs + 1) / sfSentMsgs[idx]);
-      SFConfidenceBound = sfSuccessRate[idx] + confidenceInterval;
-    } else {
-      SFConfidenceBound = MAX_CONFIDENCE_BOUND;
-    }
-
-    if (SFConfidenceBound > maxSFConfidenceBound) {
-      maxSFConfidenceBound = SFConfidenceBound;
-      bestSF = idx + LOWEST_SF;
+    if (score > maxUcbScore) {
+      maxUcbScore = score;
+      bestSF = sf;
     }
   }
 
   return bestSF;
 }
 
-void UpperConfidenceBound::update(uint8_t currentSF, bool sfMsgDelivered)
-{
-  uint8_t idx = currentSF - LOWEST_SF;
+int32_t UpperConfidenceBound::ucbScore(uint8_t sf) {
+  uint8_t idx = sf - MIN_SF;
+
+  if (pulls[idx] == 0) {
+    return INT32_MAX;  // A large value for unexplored SFs
+  }
   
-  if (sfMsgDelivered) {
-    sfDeliveredMsgs[idx] += 1;
-  }		
-  
-  sfSentMsgs[idx] += 1;	
-  allUplinkMsgs += 1;
-  
-  updateSuccessRate(idx);
-  return;
+  int32_t meanReward = (rewards[idx] * UCB_SCALE) / pulls[idx];
+  int32_t explorationTerm = (int32_t) (integerSqrt((uint32_t)(log(totalPulls * UCB_SCALE) * UCB_SCALE)) / pulls[idx]);
+  return meanReward + explorationTerm;
 }
 
-/**
- * Sets the success rate for each SF based on number of messages sent succesfuly to the number of all messages sent
- * @param index
- * @return
- */
-void UpperConfidenceBound::updateSuccessRate(uint8_t idx)
-{
-  if (sfSentMsgs[idx] == 0) {
-		return;
+void UpperConfidenceBound::update(uint8_t sf, int32_t reward) {
+    uint8_t idx = sf - MIN_SF; // Convert SF to index
+    pulls[idx]++;
+    rewards[idx] += reward;
+    totalPulls++;
+}
+
+uint32_t UpperConfidenceBound::integerSqrt(uint32_t x) {
+  uint32_t y = x;
+  while (y > (x / y)) {
+    y = (y + (x / y)) / 2;
   }
-	
-	sfSuccessRate[idx] = (float) sfDeliveredMsgs[idx] / (float) sfSentMsgs[idx];
+  return y;
 }
