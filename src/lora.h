@@ -17,10 +17,21 @@
 #define FREQ_ARRAY_SIZE 10
 #define SEQ_DIFF 10
 
-#define CAD_ENABLED 0
-#define MAB_UCB_ENABLED 0
-#define CSV_OUTPUT 0
+#ifndef CAD_ENABLED
+  #define CAD_ENABLED 0
+#endif
 
+#ifndef MAB_UCB_ENABLED
+  #define MAB_UCB_ENABLED 0
+#endif
+
+#ifndef SERIAL_DEBUG
+  #define SERIAL_DEBUG 1
+#endif
+
+#ifndef CSV_OUTPUT
+  #define CSV_OUTPUT 0
+#endif
 // Hardcoded device ID value
 /*
 #define DEVICE_ID1 0x41
