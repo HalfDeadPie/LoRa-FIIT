@@ -526,6 +526,7 @@ void lora::ClearSFsuccessRate() {
   }
 #endif
 
+#if MAB_UCB_ENABLED || CAD_ENABLED
 /**
  * Returns maximum transmission time of a packet on the channel based on communications parameters
  * @param bw
@@ -556,7 +557,9 @@ uint8_t lora::getMaximumTransmissionTime(float bw, uint8_t sf) {
 
 	return (payload + tpreamble);
 }
+#endif
 
+#if CAD_ENABLED
 /**
  * Returns maximal packet length based on communications parameters
  * @param bw
@@ -601,6 +604,7 @@ uint8_t lora::getMaxLen(float bw, uint8_t sf) {
 
 	return maxLen;
 }
+#endif
 
 /**
  * Returns the time, after which will be device able to send data (duty cycle)
@@ -785,12 +789,12 @@ bool lora::SendEmergency(uint8_t* data, uint8_t &len) {
 	uint8_t temp = len;
 	bool message_sent = false;
 
-  	#if SERIAL_DEBUG
+  #if SERIAL_DEBUG
 	  Serial.print("Delay for duty cycle before emergency: ");
 	  Serial.println(GetDutyWait());
 	#endif
   
-  	delay(GetDutyWait());
+  delay(GetDutyWait());
 
 	do {
 	  if (_sendtime < millis()) {
@@ -802,12 +806,18 @@ bool lora::SendEmergency(uint8_t* data, uint8_t &len) {
         }
       #endif
 
-			if (SendMessage(TYPE_EMER_UP, ACK_MAN, data, temp)) {
-				time = WaitDutyCycle(GetMessageLength(temp), bwDC, sfDC, crDC, TYPE_EMER_UP);
-				message_sent = true;
-			} else {
-				time = getMaximumTransmissionTime(bwDC, sfDC);
-			}
+      #if CAD_ENABLED
+        if (SendMessage(TYPE_EMER_UP, ACK_MAN, data, temp)) {
+          time = WaitDutyCycle(GetMessageLength(temp), bwDC, sfDC, crDC, TYPE_EMER_UP);
+          message_sent = true;
+        } else {
+          time = getMaximumTransmissionTime(bwDC, sfDC);
+        }
+      #else 
+        SendMessage(TYPE_EMER_UP, ACK_MAN, data, temp);
+        time = WaitDutyCycle(GetMessageLength(temp), bwDC, sfDC, crDC, TYPE_EMER_UP);
+        message_sent = true;
+      #endif
 
 			_sendtime = millis() + time;
 
