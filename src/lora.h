@@ -6,6 +6,7 @@
 #include "DH.h"
 #include "Encryption.h"
 #include <EEPROM.h>
+#include <math.h>
 
 #define RECEIVE_TIMEOUT 3000
 #define MAX_TX_POWER 14
@@ -18,6 +19,7 @@
 
 #define CAD_ENABLED 0
 #define MAB_UCB_ENABLED 0
+#define CSV_OUTPUT 0
 
 // Hardcoded device ID value
 /*
@@ -255,40 +257,44 @@ class lora : private RH_RF95
     /** Returns the message length */
     uint8_t GetMessageLength(uint8_t len);
 
-    /** Returns the 0 if Spreading Factor does not change otherwise it returns maximum transmission time on a given SF */
-    uint8_t PickBestSF(float bw);
-
-    /** Sets minimal CAD duration based on given Spreading Factor */
-    void SetCADDuration(uint8_t spreadingFactor);
-
-    /** Returns minimal CAD duration based on given Spreading Factor and Bandwidth */
-    unsigned long CalculateCadDuration(uint8_t spreadingFactor, float bw);
-
-    /** Returns the Spreading Factor success rate */
-    void CalculateSFSuccessRate();
-
-    /** Returns the Spreading Factor success rate based on number of succesfully sent messages on that Spreading Factor to number of all messages sent on that Spreading Factor */
-    float getSFsuccessRate(uint8_t okSentMessages, uint8_t allSentMessages);
-
-    /** sets message rate for Spreading Factor, number of succesfully send messages and number of all messages sent */
-    #if MAB_UCB_ENABLED
-      bool MessageSuccesfullySentOnSF(bool successfullySent);
+    #if MAB_UCB_ENABLED || CAD_ENABLED
+      /** Returns maximum transmission time for packet, maximum time for how long medium will be used by other device when transmission is detected */
+      uint8_t getMaximumTransmissionTime(float bw, uint8_t sf);
     #endif
-
-    /** Returns maximum transmission time for packet, maximum time for how long medium will be used by other device when transmission is detected */
-    uint8_t getMaximumTransmissionTime(float bw, uint8_t sf);
-
-    /** Returns maximum length of application data in a packet based on communication parameters */
-    uint8_t getMaxLen(float bw, uint8_t sf);
-
-    /** sets success rate for each Spreading Factor to zero */
-    void ClearSFsuccessRate();
 
     /** Common sending function */
     bool SendMessage(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len);
 
-    /** Upper Confidence Bound algorithmic function to determine the best Spreading Factor to send the next message on */
-    uint8_t UCB();
+    #if MAB_UCB_ENABLED
+      /** Returns the 0 if Spreading Factor does not change otherwise it returns maximum transmission time on a given SF */
+      uint8_t PickBestSF(float bw);
+
+      /** Returns the Spreading Factor success rate */
+      void CalculateSFSuccessRate();
+
+      /** Returns the Spreading Factor success rate based on number of succesfully sent messages on that Spreading Factor to number of all messages sent on that Spreading Factor */
+      float getSFsuccessRate(uint8_t okSentMessages, uint8_t allSentMessages);
+
+      /** sets message rate for Spreading Factor, number of succesfully send messages and number of all messages sent */
+      bool MessageSuccesfullySentOnSF(bool successfullySent);
+      
+      /** sets success rate for each Spreading Factor to zero */
+      void ClearSFsuccessRate();
+
+      /** Upper Confidence Bound algorithmic function to determine the best Spreading Factor to send the next message on */
+      uint8_t UCB();
+    #endif
+
+    #if CAD_ENABLED
+      /** Sets minimal CAD duration based on given Spreading Factor */
+      void SetCADDuration(uint8_t spreadingFactor);
+
+      /** Returns minimal CAD duration based on given Spreading Factor and Bandwidth */
+      unsigned long CalculateCadDuration(uint8_t spreadingFactor, float bw);
+
+      /** Returns maximum length of application data in a packet based on communication parameters */
+      uint8_t getMaxLen(float bw, uint8_t sf);
+    #endif
 };
 
 #endif

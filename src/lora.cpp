@@ -1,5 +1,4 @@
 #include "lora.h"
-#include <math.h>
 
 /**
  * Constructor: Parameters are Slave-select pin, interrupt pin, reset pin
@@ -32,19 +31,30 @@ void lora::On() {
   delay(10);
 
   while (!init()) {
-    Serial.println("LoRa radio init failed");
-    while (1);
+	  #if SERIAL_DEBUG
+    	Serial.println("LoRa radio init failed");
+    #endif
+	  while (1);
   }
 
-  Serial.println("LoRa radio init OK!");
+  #if SERIAL_DEBUG
+    Serial.println("LoRa radio init OK!");
+  #endif
+
   // If you set manual to true, you are resposible for setting the frequency, coding rate, bandwidth, spreading factor and respecting the duty cycle!
   _manual = false;
   // The default transmitter power is 13dBm, using PA_BOOST.
   // If you are using RFM95/96/97/98 modules which uses the PA_BOOST transmitter pin, then 
   // you can set transmitter powers from 5 to 23 dBm:
   setTxPower(INIT_TX_POWER, false);	
-  //setCADTimeout(20);
-  ClearSFsuccessRate();
+  
+  #if CAD_ENABLED
+    setCADTimeout(20);
+  #endif
+
+  #if MAB_UCB_ENABLED 
+    ClearSFsuccessRate();
+  #endif
 }
 
 /**
@@ -55,7 +65,6 @@ void lora::SetDefault() {
 	SetBW(DEFAULT_BW);
 	SetSF(DEFAULT_SF);	
 	SetCR(DEFAULT_CR);	
-	return;
 }
 
 /**
@@ -77,7 +86,7 @@ void lora::Awake() {
  * @param bandwidth
  */
 bool lora::SetBW(float bandwidth) {
-  #ifdef DEBUG
+  #if SERIAL_DEBUG
     Serial.print("Setting BW: ");
     Serial.println(bandwidth);
   #endif
@@ -127,9 +136,10 @@ bool lora::SetBW(float bandwidth) {
  * @param codingRate
  */
 bool lora::SetCR(uint8_t codingRate) {
-	
-	Serial.print("Setting CR0: ");	
-	Serial.println(codingRate);
+	#if SERIAL_DEBUG
+	  Serial.print("Setting CR0: ");	
+	  Serial.println(codingRate);
+  #endif
 
   bool state = false;
   byte value = spiRead(RH_RF95_REG_1D_MODEM_CONFIG1);
@@ -165,7 +175,7 @@ bool lora::SetCR(uint8_t codingRate) {
  * @param useRF0
  */
 bool lora::SetPW(uint8_t power, bool useRF0) {
-  #ifdef DEBUG
+  #ifdef SERIAL_DEBUG
     Serial.print("Setting PW: ");
     Serial.println(power);
   #endif
@@ -179,7 +189,7 @@ bool lora::SetPW(uint8_t power, bool useRF0) {
  * @return
  */
 bool lora::SetSF(uint8_t spreadingFactor) {
-  #ifdef DEBUG
+  #ifdef SERIAL_DEBUG
     Serial.print("Setting SF: ");
     Serial.println(spreadingFactor);
   #endif
@@ -252,34 +262,31 @@ bool lora::SetSF(uint8_t spreadingFactor) {
   return false;
 }
 
-/**
- * Sets minimal CAD duration based on given Spreading Factor
- * @param spreadingFactor
- * @return
- */
-void lora::SetCADDuration(uint8_t spreadingFactor) {
-  unsigned long timeout = CalculateCadDuration(spreadingFactor, bwDC);
-  
-  setCADTimeout(timeout);
-  
-  return;
-}
+#if CAD_ENABLED
+  /**
+   * Sets minimal CAD duration based on given Spreading Factor
+   * @param spreadingFactor
+   * @return
+   */
+  void lora::SetCADDuration(uint8_t spreadingFactor) {
+    unsigned long timeout = CalculateCadDuration(spreadingFactor, bwDC);
+    setCADTimeout(timeout);
+  }
 
-/**
- * Calculates minimal CAD duration based on given Spreading Factor and Bandwidth settings
- * @return
- */
-unsigned long lora::CalculateCadDuration(uint8_t spreadingFactor, float bw) {
-  unsigned long timeout = 50;
-  float minimal_duration = pow(2, spreadingFactor);
-  minimal_duration += 32;
-  minimal_duration /=  bw;   
-  minimal_duration = round(minimal_duration);
+  /**
+   * Calculates minimal CAD duration based on given Spreading Factor and Bandwidth settings
+   * @return
+   */
+  unsigned long lora::CalculateCadDuration(uint8_t spreadingFactor, float bw) {
+    unsigned long timeout = 50;
+    uint32_t minimal_duration = (1UL << spreadingFactor) + 32;
+    minimal_duration = (minimal_duration + (uint32_t)(bw * 0.5)) / (uint32_t)bw;
 
-  timeout = minimal_duration + 5;
+    timeout = minimal_duration + 5;
 
-  return timeout;
-}
+    return timeout;
+  }
+#endif
 
 
 /**
@@ -288,7 +295,7 @@ unsigned long lora::CalculateCadDuration(uint8_t spreadingFactor, float bw) {
  * @return
  */
 bool lora::SetFrequency(float frequency) {
-  #ifdef DEBUG
+  #ifdef SERIAL_DEBUG
     Serial.print("Setting FREQ: ");
     Serial.println(frequency);
   #endif
@@ -318,9 +325,11 @@ bool lora::SendMessage(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len) {
 	uint16_t* seqpointer = (uint16_t*) datapointer;
 	_sequence_number++;
 	
-  Serial.print("Sequence number: ");
-	Serial.println(_sequence_number);
-	
+  #if SERIAL_DEBUG
+    Serial.print("Sequence number: ");
+	  Serial.println(_sequence_number);
+	#endif
+
   *seqpointer = _sequence_number;
 	
 	datapointer += sizeof(uint16_t);
@@ -347,16 +356,22 @@ bool lora::SendMessage(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len) {
 	}
 	
 	Encryption::encrypt(&payload[4], actuallen + paddinglen, dhkey1.session_private_key);
-	Serial.println("Waiting for packet to complete...");
-	delay(10);
+  
+  #if SERIAL_DEBUG
+	  Serial.println("Waiting for packet to complete...");
+	#endif
+  
+  delay(10);
 
-  Serial.print(_sequence_number);
-  Serial.print(",");
-  Serial.print(freqDataDC);
-  Serial.print(",");
-  Serial.print(pwDC);
-  Serial.print(",");
-  Serial.println(sfDC);
+  #if CSV_OUTPUT
+    Serial.print(_sequence_number);
+    Serial.print(",");
+    Serial.print(freqDataDC);
+    Serial.print(",");
+    Serial.print(pwDC);
+    Serial.print(",");
+    Serial.println(sfDC);
+  #endif
 
 	sendOk = send(payload, 4 + actuallen + paddinglen);
 	waitPacketSent();
@@ -385,6 +400,7 @@ uint8_t lora::GetMessageLength(uint8_t len) {
 	return 3 + 1 + actuallen + paddinglen;
 }
 
+#if MAB_UCB_ENABLED
 /**
  * Calculates success rate for a given spreading factor
  * @param okSentMessages
@@ -392,11 +408,11 @@ uint8_t lora::GetMessageLength(uint8_t len) {
  * @return 
  */
 float lora::getSFsuccessRate(uint8_t okSentMessages, uint8_t allSentMessages) {
-	if (allSentMessages == 0) {
-		return 0;
+  if (allSentMessages == 0) {
+    return 0;
   }
-	
-	return ((float) okSentMessages/ (float) allSentMessages);
+  
+  return ((float) okSentMessages/ (float) allSentMessages);
 }
 
 /**
@@ -420,8 +436,11 @@ uint8_t lora::UCB() {
   float confidence_interval;
   float max_SF_confidence_bound = 0;
   uint8_t bestSF = Default_SF;
-	Serial.println("Default SF, should be 7");
-	Serial.println(bestSF);
+
+  #if SERIAL_DEBUG
+	  Serial.println("Default SF, should be 7");
+	  Serial.println(bestSF);
+  #endif
 
   if (_allSentMessages == 0) {
     return bestSF;
@@ -442,8 +461,10 @@ uint8_t lora::UCB() {
     }
   }
 	
-	Serial.print("And the Award Goes to the Best SF (value between 7 and 12): ");
-	Serial.println(bestSF);
+  #if SERIAL_DEBUG
+	  Serial.print("And the Award Goes to the Best SF (value between 7 and 12): ");
+	  Serial.println(bestSF);
+  #endif
 
   return bestSF;
 }
@@ -486,16 +507,17 @@ void lora::ClearSFsuccessRate() {
  * @param successfullySent
  * @return
  */
-#if MAB_UCB_ENABLED
   bool lora::MessageSuccesfullySentOnSF(bool successfullySent)
   {
     if (successfullySent) {
       SF_OkSentMsg[currentSF - SF_indexer] += 1;
     }		
 
-    Serial.print("Setting SF success rate for SF: ");
-    Serial.println(currentSF - SF_indexer);
-    
+    #if SERIAL_DEBUG
+      Serial.print("Setting SF success rate for SF: ");
+      Serial.println(currentSF - SF_indexer);
+    #endif
+
     SF_allSentMsg[currentSF - SF_indexer] += 1;	
     _allSentMessages += 1;
     
@@ -602,9 +624,12 @@ bool lora::Send(uint8_t* data, uint8_t &len) {
 	bool message_sent = false;
 
 	if (_sendtime < millis()) {
-		Serial.println();
-		Serial.println("Sending message...");
-		LoadNetworkData(TYPE_DATA_UP, GetMessageLength(len));
+    #if SERIAL_DEBUG
+		  Serial.println();
+		  Serial.println("Sending message...");
+		#endif
+
+    LoadNetworkData(TYPE_DATA_UP, GetMessageLength(len));
 
 		if (SendMessage(TYPE_DATA_UP, ACK_OPT, data, len)) {
 			time = WaitDutyCycle(GetMessageLength(len), bwDC, sfDC, crDC, TYPE_DATA_UP);
@@ -624,9 +649,12 @@ bool lora::Send(uint8_t* data, uint8_t &len) {
 		return message_sent;
 	}
 
-	Serial.print("Duty cycle: ");
-	Serial.println(GetDutyWait());
-	return message_sent;
+  #if SERIAL_DEBUG
+	  Serial.print("Duty cycle: ");
+	  Serial.println(GetDutyWait());
+	#endif
+
+  return message_sent;
 }
 
 /**
@@ -641,11 +669,13 @@ bool lora::Send(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len) {
   uint32_t time = 0;
   bool message_sent = false;
 
-  /*
-  Serial.print("_sendtime: ");
-  Serial.println(_sendtime);
-  Serial.print("milis: ");
-  Serial.println(millis());
+  /* 
+  #if SERIAL_DEBUG
+    Serial.print("_sendtime: ");
+    Serial.println(_sendtime);
+    Serial.print("milis: ");
+    Serial.println(millis());
+  #endif
   */
 
   // if current time is more than next available sendtime
@@ -653,7 +683,9 @@ bool lora::Send(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len) {
     // calculates next available send time based on time it will take to send the message and what is the frequency range duty cycle
 		LoadNetworkData(type, GetMessageLength(len));
 
-		Serial.println("Network Data Loaded");
+    #if SERIAL_DEBUG
+	  	Serial.println("Network Data Loaded");
+    #endif
 
 		if (SendMessage(type,ack,data,len)) {
 			time = WaitDutyCycle(GetMessageLength(len), bwDC, sfDC, crDC, type);
@@ -686,9 +718,12 @@ bool lora::Send(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len) {
 		} else {
       #if CAD_ENABLED
         len = 0;
-        Serial.println("CAD detected message not sent");
-        Serial.print("Message sent: ");
-        Serial.println(message_sent);
+        #if SERIAL_DEBUG
+          Serial.println("CAD detected message not sent");
+          Serial.print("Message sent: ");
+          Serial.println(message_sent);
+        #endif
+
         return message_sent;
       #endif
 		}
@@ -696,9 +731,12 @@ bool lora::Send(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len) {
 		return message_sent;
 	}
 
-  Serial.print("Next uplink message ready for transmission in less than ");
-  Serial.print(GetDutyWait());
-  Serial.println(" milliseconds");
+  #if SERIAL_DEBUG
+    Serial.print("Next uplink message ready for transmission in less than ");
+    Serial.print(GetDutyWait());
+    Serial.println(" milliseconds");
+  #endif
+
   return message_sent;
 }
 
@@ -746,9 +784,13 @@ bool lora::SendEmergency(uint8_t* data, uint8_t &len) {
 	uint32_t time = 0;
 	uint8_t temp = len;
 	bool message_sent = false;
-	Serial.print("Delay for duty cycle before emergency: ");
-	Serial.println(GetDutyWait());
-	delay(GetDutyWait());
+
+  	#if SERIAL_DEBUG
+	  Serial.print("Delay for duty cycle before emergency: ");
+	  Serial.println(GetDutyWait());
+	#endif
+  
+  	delay(GetDutyWait());
 
 	do {
 	  if (_sendtime < millis()) {
@@ -769,7 +811,9 @@ bool lora::SendEmergency(uint8_t* data, uint8_t &len) {
 
 			_sendtime = millis() + time;
 
-			Serial.println("Sending emergency and receiving...");
+      #if SERIAL_DEBUG
+			  Serial.println("Sending emergency and receiving...");
+      #endif
 
 			if (message_sent == true && Receive(data,len)) {
         #if MAB_UCB_ENABLED
@@ -785,10 +829,13 @@ bool lora::SendEmergency(uint8_t* data, uint8_t &len) {
 
       iteration++;
 		} else {
-			Serial.print("Duty  cycle: ");
-			Serial.print(GetDutyWait());
-			Serial.println("  -Emergency");
-			delay(GetDutyWait());
+      #if SERIAL_DEBUG
+			  Serial.print("Duty  cycle: ");
+			  Serial.print(GetDutyWait());
+			  Serial.println("  -Emergency");
+			#endif
+      
+      delay(GetDutyWait());
 		}
     message_sent = false;
 	} while(iteration < 3);
@@ -807,8 +854,11 @@ bool lora::SendEmergency(uint8_t* data, uint8_t &len) {
  * @return
  */
 bool lora::Register(uint8_t* buffer, uint8_t &len) {
-	Serial.println("Running register function");
-	SetDefault();		
+  #if SERIAL_DEBUG
+	  Serial.println("Running register function");
+	#endif
+
+  SetDefault();		
 	bool message_sent = false;
 	uint8_t payload[20];
 	setDEVID(payload);
@@ -819,7 +869,7 @@ bool lora::Register(uint8_t* buffer, uint8_t &len) {
 	dhkey1.sendDHA(&payload[4]);
 	bool recValue = false;
 
-	#ifdef DEBUG
+	#ifdef SERIAL_DEBUG
 	  Serial.println("Sending register..."); delay(10);
 	#endif
 
@@ -828,8 +878,10 @@ bool lora::Register(uint8_t* buffer, uint8_t &len) {
 
 	_sendtime = 0;
 
-  Serial.print("Sentime during registration set to: ");
-  Serial.println(_sendtime);
+  #if SERIAL_DEBUG
+    Serial.print("Sentime during registration set to: ");
+    Serial.println(_sendtime);
+  #endif
 
 	_sequence_number = 0;
 	int regiterator = 0;
@@ -845,7 +897,10 @@ bool lora::Register(uint8_t* buffer, uint8_t &len) {
 		if (regiterator < 3) {
 			message_sent = send(payload, sizeof(payload));
 			waitPacketSent();
-			Serial.println("ITERATOR < 3");
+      
+      #if SERIAL_DEBUG
+			  Serial.println("ITERATOR < 3");
+      #endif 
 
 			if (message_sent == true) {
 				recValue = Receive(buffer, len);
@@ -904,7 +959,12 @@ bool lora::Register(uint8_t* buffer, uint8_t &len) {
  */
 bool lora::Receive(uint8_t* buf, uint8_t &len) {
   spiWrite(RH_RF95_REG_33_INVERT_IQ, spiRead(RH_RF95_REG_33_INVERT_IQ)|(1<<6));
-  Serial.println("Waiting for reply..."); delay(10);
+  
+  #if SERIAL_DEBUG
+    Serial.println("Waiting for reply..."); 
+  #endif
+  
+  delay(10);
 
   if (waitAvailableTimeout(RECEIVE_TIMEOUT))
   {
@@ -925,7 +985,10 @@ bool lora::Receive(uint8_t* buf, uint8_t &len) {
       switch (type) {
         case TYPE_REG_DOWN:
           if (ProcessMessage(buf, len, true)) {
-            Serial.println("Processing the register down message...");
+            #if SERIAL_DEBUG
+              Serial.println("Processing the register down message...");
+            #endif
+
             ProcessNetworkData(&_buf[21], _buf[20], true);
             clearRxBuf();
             return true;
@@ -948,8 +1011,10 @@ bool lora::Receive(uint8_t* buf, uint8_t &len) {
     return false;
   } else {
 	  len = 0;
-    Serial.println("No reply, is there a listener around?");
-	  return false;
+    #if SERIAL_DEBUG
+      Serial.println("No reply, is there a listener around?");
+	  #endif
+    return false;
   }
 }
 
@@ -992,35 +1057,47 @@ bool lora::ProcessMessage(uint8_t* dataout, uint8_t &len, bool reg) {
 
 	if (!reg) {
 		if (!CheckSequence(*sequencepointer)) {
-			Serial.println("**ERROR: Bad seq");
-			return false;
+      #if SERIAL_DEBUG
+			  Serial.println("**ERROR: Bad seq");
+			#endif
+      return false;
 		}
 		_sequence_number = *sequencepointer;
 	} else {
 	  _sequence_number = *sequencepointer;
 	}
-	Serial.print("Received sequence number with value: ");
-	Serial.println(_sequence_number);
+  #if SERIAL_DEBUG
+	  Serial.print("Received sequence number with value: ");
+	  Serial.println(_sequence_number);
+  #endif
 
 	payload += sizeof(uint16_t);
 	uint32_t* micpointer = (uint32_t*) payload;
 
   // 4 bytes for netlen appLen and seq
   /*
-  Serial.println("Pointers:");
-  Serial.println(*decryptedpointer);
-  Serial.println(networklen + applen + 4);
-  Serial.println(*micpointer);
+  #if SERIAL_DEBUG
+    Serial.println("Pointers:");
+    Serial.println(*decryptedpointer);
+    Serial.println(networklen + applen + 4);
+    Serial.println(*micpointer);
+  #endif
   */
 
 	if (Encryption::checkMIC(decryptedpointer, networklen + applen + 4, *micpointer) == false)
 	{
-		Serial.println("**ERROR: Bad MIC");
-		return false;
+    #if SERIAL_DEBUG
+		  Serial.println("**ERROR: Bad MIC");
+		#endif
+
+    return false;
 	}
 	
-	Serial.println("Received message is ok!");
-	return true;
+  #if SERIAL_DEBUG
+	  Serial.println("Received message is ok!");
+	#endif
+
+  return true;
 }
 
 /**
@@ -1307,6 +1384,7 @@ uint32_t lora::WaitDutyCycle(uint8_t len, float bw, uint8_t sf, uint8_t cr, uint
 		return 0;
   }
 
+  // Calculate the symbol time
 	float tsymbol = pow(2,sf) / (bw * 1000);
 	tsymbol *= 1000;
 	uint8_t optimalization = sf > 10 ? 1 : 0;
@@ -1334,8 +1412,10 @@ uint32_t lora::WaitDutyCycle(uint8_t len, float bw, uint8_t sf, uint8_t cr, uint
 		timeOffAir = ((payload + tpreamble) / 0.1) - (payload + tpreamble);
 	}
 
-	Serial.print("Time of air from waitDC: ");
-	Serial.println(timeOffAir);
+  #if SERIAL_DEBUG
+	  Serial.print("Time of air from waitDC: ");
+	  Serial.println(timeOffAir);
+  #endif
 
 	return timeOffAir;
 }
@@ -1346,8 +1426,10 @@ uint32_t lora::WaitDutyCycle(uint8_t len, float bw, uint8_t sf, uint8_t cr, uint
  */
 void lora::SetManual(bool value) {
 	if (value) {
-		Serial.println("**MANUALMODE: You are responsible for respecting the duty cycle**");
-		_sendtime = millis();
+    #if SERIAL_DEBUG
+		  Serial.println("**MANUALMODE: You are responsible for respecting the duty cycle**");
+		#endif
+    _sendtime = millis();
 	}
 	_manual = value;
 }
