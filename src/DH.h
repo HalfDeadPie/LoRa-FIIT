@@ -32,6 +32,10 @@
 
 #include <Arduino.h>
 
+#ifndef SERIAL_DEBUG
+  #define SERIAL_DEBUG 1
+#endif
+
 class DH {
 	public:
 	  DH();
@@ -40,9 +44,12 @@ class DH {
 	  uint32_t pow_mod_p2(uint32_t a, uint32_t b, uint32_t P);
 	  uint32_t randomInt32();
     void getSessionKey(uint8_t* neighborPublic);
-	  void printSessionKey();
 	  void sendDHA(uint8_t* publicKey);
 	  uint8_t session_private_key[KEY_SIZE];
+
+    #if SERIAL_DEBUG
+	    void printSessionKey();
+    #endif
 };
 
 #endif

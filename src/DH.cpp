@@ -213,11 +213,12 @@ void DH::getSessionKey(uint8_t* neighborPublic) {
 	*sessionkey = pow_mod_p2(*publicpointer, privatekey, *presharedpointer);
 }
 
+#if SERIAL_DEBUG
 /**
  * Prints a session key in HEX format
  */
 void DH::printSessionKey() {
-  Serial.print("**Session key: ");
+  Serial.print(F("Session key: "));
 
   for (int i = 0; i < 16; i++) {
     Serial.print(session_private_key[i], HEX);
@@ -226,3 +227,4 @@ void DH::printSessionKey() {
 
   Serial.println();
 }
+#endif

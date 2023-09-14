@@ -17,27 +17,21 @@
 #define FREQ_ARRAY_SIZE 10
 #define SEQ_DIFF 10
 
-#ifndef CAD_ENABLED
-  #define CAD_ENABLED 0
-#endif
-
 #ifndef MAB_UCB_ENABLED
   #define MAB_UCB_ENABLED 0
 #endif
 
+#ifndef MANUAL_ENABLED
+  #define MANUAL_ENABLED 0
+#endif
+
 #ifndef SERIAL_DEBUG
-  #define SERIAL_DEBUG 1
+  #define SERIAL_DEBUG 0
 #endif
 
 #ifndef CSV_OUTPUT
   #define CSV_OUTPUT 0
 #endif
-// Hardcoded device ID value
-/*
-#define DEVICE_ID1 0x41
-#define DEVICE_ID2 0x41
-#define DEVICE_ID3 0x41
-*/
 
 // Registration channels
 #define REG_CHANNEL_1  866.1 // 866.10MHz
@@ -93,31 +87,31 @@
 #define Default_SF 0x07//number of lowest spreading factor used in LoRa@FIIT protocol
 
 // Coding rate
-const byte CR_5 = B00000010; // 4/5
-const byte CR_6 = B00000100; // 4/6
-const byte CR_7 = B00000110; // 4/7
-const byte CR_8 = B00001000; // 4/8
+#define CR_5 B00000010 // 4/5
+#define CR_6 B00000100 // 4/6
+#define CR_7 B00000110 // 4/7
+#define CR_8 B00001000 // 4/8
 
 // Bandwidth
-const byte BW_7_8 = B00000000; // 7.8 kHz
-const byte BW_10_4 = B00010000; // 10.4 kHz
-const byte BW_15_6 = B00100000; // 15.6 kHz
-const byte BW_20_8 = B00110000; // 20.8 kHz
-const byte BW_31_25 = B01000000; // 31.25 kHz
-const byte BW_41_7 = B01010000; // 41.7 kHz
-const byte BW_62_5 = B01100000; // 62.5 kHz
-const byte BW_125 = B01110000; // 125 kHz
-const byte BW_250 = B10000000; // 250 kHz
-const byte BW_500 = B10010000; // 500 kHz
+#define BW_7_8 B00000000 // 7.8 kHz
+#define BW_10_4 B00010000 // 10.4 kHz
+#define BW_15_6 B00100000 // 15.6 kHz
+#define BW_20_8 B00110000 // 20.8 kHz
+#define BW_31_25 B01000000 // 31.25 kHz
+#define BW_41_7 B01010000 // 41.7 kHz
+#define BW_62_5 B01100000 // 62.5 kHz
+#define BW_125 B01110000 // 125 kHz
+#define BW_250 B10000000 // 250 kHz
+#define BW_500 B10010000 // 500 kHz
 
 // Spreading factor
-const byte SF_6 = B01100000; // 2^6 = 64 chips / symbol
-const byte SF_7 = B01110000; // 2^7 = 128 chips / symbol
-const byte SF_8 = B10000000; // 2^8 = 256 chips / symbol
-const byte SF_9 = B10010000; // 2^9 = 512 chips / symbol
-const byte SF_10 = B10100000; // 2^10 = 1024 chips / symbol
-const byte SF_11 = B10110000; // 2^11 = 2048 chips / symbol
-const byte SF_12 = B11000000; // 2^12 = 4096 chips / symbol
+#define SF_6 B01100000 // 2^6 = 64 chips / symbol
+#define SF_7 B01110000 // 2^7 = 128 chips / symbol
+#define SF_8 B10000000 // 2^8 = 256 chips / symbol
+#define SF_9 B10010000 // 2^9 = 512 chips / symbol
+#define SF_10 B10100000 // 2^10 = 1024 chips / symbol
+#define SF_11 B10110000 // 2^11 = 2048 chips / symbol
+#define SF_12 B11000000 // 2^12 = 4096 chips / symbol
 
 /** Structure: Actual global configuration */
 struct netconfig {
@@ -176,7 +170,10 @@ class lora : private RH_RF95
     void Awake();
 
     void Sleep();
-    void SetManual(bool value);
+    
+    #if MANUAL_ENABLED
+      void SetManual(bool value);
+    #endif
 
     /** Send basic data message with ack */
     bool Send(uint8_t* data, uint8_t &len);
@@ -206,14 +203,16 @@ class lora : private RH_RF95
 
     bool _manual;
 
-    /** Stores number of all uplink messages send on each Spreading Factor*/
-    unsigned int SF_allSentMsg[7];
-    /** Stores number of all uplink messages successfully send and decoded by gateway on each Spreading Factor*/
-    unsigned int SF_OkSentMsg[7];
-    /** Stores the ration of successfully send messages to all send messages for each Spreading Factor*/
-    float SF_successRate[7];
-    /** Holds the number of all uplink messages with required ACK or the opening of recieve window send since modem was turned On*/
-    unsigned int _allSentMessages;
+    #if MAB_UCB_ENABLED
+      /** Stores number of all uplink messages send on each Spreading Factor*/
+      unsigned int SF_allSentMsg[7];
+      /** Stores number of all uplink messages successfully send and decoded by gateway on each Spreading Factor*/
+      unsigned int SF_OkSentMsg[7];
+      /** Stores the ration of successfully send messages to all send messages for each Spreading Factor*/
+      float SF_successRate[7];
+      /** Holds the number of all uplink messages with required ACK or the opening of recieve window send since modem was turned On*/
+      unsigned int _allSentMessages;
+    #endif
 
     /** Holds the value of Spreading Factor currently used to send uplink message on*/
     uint8_t currentSF;
@@ -271,30 +270,13 @@ class lora : private RH_RF95
     #if MAB_UCB_ENABLED || CAD_ENABLED
       /** Returns maximum transmission time for packet, maximum time for how long medium will be used by other device when transmission is detected */
       uint8_t getMaximumTransmissionTime(float bw, uint8_t sf);
+
+      /** Returns maximum length of application data in a packet based on communication parameters */
+      uint8_t getMaxLen(float bw, uint8_t sf);
     #endif
 
     /** Common sending function */
     bool SendMessage(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len);
-
-    #if MAB_UCB_ENABLED
-      /** Returns the 0 if Spreading Factor does not change otherwise it returns maximum transmission time on a given SF */
-      uint8_t PickBestSF(float bw);
-
-      /** Returns the Spreading Factor success rate */
-      void CalculateSFSuccessRate();
-
-      /** Returns the Spreading Factor success rate based on number of succesfully sent messages on that Spreading Factor to number of all messages sent on that Spreading Factor */
-      float getSFsuccessRate(uint8_t okSentMessages, uint8_t allSentMessages);
-
-      /** sets message rate for Spreading Factor, number of succesfully send messages and number of all messages sent */
-      bool MessageSuccesfullySentOnSF(bool successfullySent);
-      
-      /** sets success rate for each Spreading Factor to zero */
-      void ClearSFsuccessRate();
-
-      /** Upper Confidence Bound algorithmic function to determine the best Spreading Factor to send the next message on */
-      uint8_t UCB();
-    #endif
 
     #if CAD_ENABLED
       /** Sets minimal CAD duration based on given Spreading Factor */
@@ -302,9 +284,6 @@ class lora : private RH_RF95
 
       /** Returns minimal CAD duration based on given Spreading Factor and Bandwidth */
       unsigned long CalculateCadDuration(uint8_t spreadingFactor, float bw);
-
-      /** Returns maximum length of application data in a packet based on communication parameters */
-      uint8_t getMaxLen(float bw, uint8_t sf);
     #endif
 };
 

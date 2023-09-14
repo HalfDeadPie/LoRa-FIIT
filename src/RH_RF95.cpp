@@ -250,12 +250,12 @@ bool RH_RF95::send(const uint8_t* data, uint8_t len)
     waitPacketSent(); // Make sure we dont interrupt an outgoing message
     setModeIdle();
 
-  #if CAD_ENABLED
-    if (!waitCAD()){//channel is clear when func returns true
-      Serial.println("Channel activity detected");
-      return false;  // Check channel activity
-    }
-    Serial.println("Channel activity not detected sending data");
+    #if CAD_ENABLED
+        if (!waitCAD()){//channel is clear when func returns true
+        Serial.println("Channel activity detected");
+        return false;  // Check channel activity
+        }
+        Serial.println("Channel activity not detected sending data");
 	#endif   
 
     // Position at the beginning of the FIFO
