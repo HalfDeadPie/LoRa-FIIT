@@ -15,7 +15,6 @@ class Bandit
     virtual ~Bandit();
 
     virtual uint8_t pull();
-    virtual void update(uint8_t idx, uint8_t reward);
 
   private:
     uint32_t rewards[NUM_SF];
