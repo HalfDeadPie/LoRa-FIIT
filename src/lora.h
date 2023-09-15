@@ -8,13 +8,15 @@
 #include <EEPROM.h>
 #include <math.h>
 
-#define MAB_UCB_ENABLED 1
-#define MAB_TS_ENABLED 0
+#define MAB_UCB_ENABLED 0
+#define MAB_TS_ENABLED 1
 #define MANUAL_ENABLED 0
 #define CSV_OUTPUT 0
 
 #if MAB_UCB_ENABLED
   #include <UpperConfidenceBound.h>
+#elif MAB_TS_ENABLED
+  #include <ThompsonSampling.h>
 #endif
 
 #define RECEIVE_TIMEOUT 3000
@@ -187,7 +189,9 @@ class lora : private RH_RF95
 
   private:
     #if MAB_UCB_ENABLED
-      UpperConfidenceBound ucb;
+      UpperConfidenceBound mab;
+    #elif MAB_TS_ENABLED
+      ThompsonSampling mab;
     #endif
 
     /** Reset pin - used for reset in On() */
@@ -267,7 +271,7 @@ class lora : private RH_RF95
       unsigned long CalculateCadDuration(uint8_t spreadingFactor, float bw);
     #endif
 
-    #if MAB_UCB_ENABLED
+    #if MAB_UCB_ENABLED || MAB_TS_ENABLED
       uint8_t getTimeForBestSF(float currentBW, uint8_t currentSF);
     #endif
 };

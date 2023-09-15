@@ -54,7 +54,9 @@ void lora::On() {
 
   // Initiate UCB arrays
   #if MAB_UCB_ENABLED 
-    ucb = UpperConfidenceBound();
+    mab = UpperConfidenceBound();
+  #elif MAB_TS_ENABLED 
+    mab = ThompsonSampling();
   #endif
 }
 
@@ -123,7 +125,7 @@ bool lora::SetBW(float bandwidth) {
   spiWrite(RH_RF95_REG_1D_MODEM_CONFIG1, value);
   value = spiRead(RH_RF95_REG_1D_MODEM_CONFIG1);
 
-  // Getting the bandwidth bits only
+  // Getting the bandwidth bimab only
   value &= B11110000;
 
   if (value == bw) {
@@ -154,7 +156,7 @@ bool lora::SetCR(uint8_t codingRate) {
 		default: return false;
 	}
   
-  // Clear bits for coding rate
+  // Clear bimab for coding rate
   value &= B11110001;
   // Set coding rate bits
   value |= cr;
@@ -265,7 +267,7 @@ bool lora::SetSF(uint8_t spreadingFactor) {
 
 #if CAD_ENABLED
   /**
-   * Sets minimal CAD duration based on given Spreading Factor
+   * Semab minimal CAD duration based on given Spreading Factor
    * @param spreadingFactor
    * @return
    */
@@ -402,7 +404,7 @@ uint8_t lora::GetMessageLength(uint8_t len) {
 }
 
 
-#if MAB_UCB_ENABLED || CAD_ENABLED
+#if MAB_UCB_ENABLED || MAB_TS_ENABLED || CAD_ENABLED
 /**
  * Returns maximum transmission time of a packet on the channel based on communications parameters
  * @param bw
@@ -435,7 +437,7 @@ uint8_t lora::getMaximumTransmissionTime(float bw, uint8_t sf) {
 }
 #endif
 
-#if CAD_ENABLED || MAB_UCB_ENABLED
+#if CAD_ENABLED || MAB_TS_ENABLED || MAB_UCB_ENABLED
 /**
  * Returns maximal packet length based on communications parameters
  * @param bw
@@ -506,19 +508,23 @@ bool lora::Send(uint8_t* data, uint8_t &len) {
 	if (_sendtime < millis()) {
     #if SERIAL_DEBUG
 		  Serial.println();
-		  Serial.println("Sending message...");
+		  Serial.println(F("Sending message..."));
 		#endif
 
     LoadNetworkData(TYPE_DATA_UP, GetMessageLength(len));
 
-		if (SendMessage(TYPE_DATA_UP, ACK_OPT, data, len)) {
-			time = WaitDutyCycle(GetMessageLength(len), bwDC, sfDC, crDC, TYPE_DATA_UP);
-			message_sent = true;
-		} else {
-      #if MAB_UCB_ENABLED
+    #if MAB_UCB_ENABLED || MAB_TS_ENABLED
+      if (SendMessage(TYPE_DATA_UP, ACK_OPT, data, len)) {
+        time = WaitDutyCycle(GetMessageLength(len), bwDC, sfDC, crDC, TYPE_DATA_UP);
+        message_sent = true;
+      } else {
         time = getTimeForBestSF(bwDC, sfDC);
-      #endif
-		}
+      }
+    #else
+      SendMessage(TYPE_DATA_UP, ACK_OPT, data, len);
+      time = WaitDutyCycle(GetMessageLength(len), bwDC, sfDC, crDC, TYPE_DATA_UP);
+      message_sent = true;
+    #endif
 
 		_sendtime = millis() +  time;
 
@@ -554,14 +560,18 @@ bool lora::Send(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len) {
     // calculates next available send time based on time it will take to send the message and what is the frequency range duty cycle
 		LoadNetworkData(type, GetMessageLength(len));
 
-		if (SendMessage(type,ack,data,len)) {
-			time = WaitDutyCycle(GetMessageLength(len), bwDC, sfDC, crDC, type);
-			message_sent = true;
-		} else {
-      #if MAB_UCB_ENABLED
-			  time = getTimeForBestSF(bwDC, sfDC);
-      #endif
-		}
+    #if MAB_UCB_ENABLED || MAB_TS_ENABLED
+      if (SendMessage(TYPE_DATA_UP, ACK_OPT, data, len)) {
+        time = WaitDutyCycle(GetMessageLength(len), bwDC, sfDC, crDC, TYPE_DATA_UP);
+        message_sent = true;
+      } else {
+        time = getTimeForBestSF(bwDC, sfDC);
+      }
+    #else
+      SendMessage(TYPE_DATA_UP, ACK_OPT, data, len);
+      time = WaitDutyCycle(GetMessageLength(len), bwDC, sfDC, crDC, TYPE_DATA_UP);
+      message_sent = true;
+    #endif
 
 		_sendtime = millis() + time;
 
@@ -570,15 +580,15 @@ bool lora::Send(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len) {
 			if (message_sent == false || Receive(data, len) == false) {
 				len = temp;
 
-        #if MAB_UCB_ENABLED
-				  ucb.update(sfDC, 0);		
+        #if MAB_UCB_ENABLED || MAB_TS_ENABLED
+				  mab.update(sfDC, 0);
         #endif
 
-        return SendEmergency(data,len);
+        return SendEmergency(data, len);
 			}
 
-      #if MAB_UCB_ENABLED
-			  ucb.update(sfDC, 1);	
+      #if MAB_UCB_ENABLED || MAB_TS_ENABLED
+			  mab.update(sfDC, 1);	
       #endif 
 		} else if (ack == ACK_OPT && message_sent == true) {
 			Receive(data, len);
@@ -620,14 +630,18 @@ bool lora::SendHello(uint8_t* data, uint8_t &len) {
 	if (_sendtime < millis()) {
 		LoadNetworkData(TYPE_HELLO_UP,len);
 	
-		if (SendMessage(TYPE_HELLO_UP, ACK_OPT, data, len)) {
-			time = WaitDutyCycle(len, bwDC, sfDC, crDC, TYPE_HELLO_UP);
-			message_sent = true;
-		} else {
-			#if MAB_UCB_ENABLED
+    #if MAB_UCB_ENABLED || MAB_TS_ENABLED
+      if (SendMessage(TYPE_HELLO_UP, ACK_OPT, data, len)) {
+        time = WaitDutyCycle(GetMessageLength(len), bwDC, sfDC, crDC, TYPE_HELLO_UP);
+        message_sent = true;
+      } else {
         time = getTimeForBestSF(bwDC, sfDC);
-      #endif
-		}
+      }
+    #else
+      SendMessage(TYPE_HELLO_UP, ACK_OPT, data, len);
+      time = WaitDutyCycle(GetMessageLength(len), bwDC, sfDC, crDC, TYPE_HELLO_UP);
+      message_sent = true;
+    #endif
 
 		_sendtime = millis() +  time;
 
@@ -663,7 +677,7 @@ bool lora::SendEmergency(uint8_t* data, uint8_t &len) {
 	  if (_sendtime < millis()) {
 			LoadNetworkData(TYPE_EMER_UP, GetMessageLength(temp));
 
-      #if MAB_UCB_ENABLED
+      #if MAB_UCB_ENABLED || MAB_TS_ENABLED
         if (iteration > 0) {
           time = getTimeForBestSF(bwDC, sfDC);
         }
@@ -689,15 +703,15 @@ bool lora::SendEmergency(uint8_t* data, uint8_t &len) {
       #endif
 
 			if (message_sent == true && Receive(data,len)) {
-        #if MAB_UCB_ENABLED
-				  ucb.update(sfDC, 1);	
+        #if MAB_UCB_ENABLED || MAB_TS_ENABLED
+				  mab.update(sfDC, 1);	
         #endif
 
 				return message_sent;
 			}
 
-      #if MAB_UCB_ENABLED
-			  ucb.update(sfDC, 0);	
+      #if MAB_UCB_ENABLED || MAB_TS_ENABLED
+			  mab.update(sfDC, 0);	
 			#endif
 
       iteration++;
@@ -767,8 +781,8 @@ bool lora::Register(uint8_t* buffer, uint8_t &len) {
 			if (message_sent == true) {
 				recValue = Receive(buffer, len);
         
-        #if MAB_UCB_ENABLED
-				  ucb.update(sfDC, recValue);	
+        #if MAB_UCB_ENABLED || MAB_TS_ENABLED
+				  mab.update(sfDC, recValue);	
         #endif
 			}	else { 
 				recValue = false;
@@ -788,8 +802,8 @@ bool lora::Register(uint8_t* buffer, uint8_t &len) {
       if (message_sent == true) {
 				recValue = Receive(buffer, len);
 
-        #if MAB_UCB_ENABLED
-				  ucb.update(sfDC, recValue);
+        #if MAB_UCB_ENABLED || MAB_TS_ENABLED
+				  mab.update(sfDC, recValue);
         #endif
 
 			}	else {
@@ -799,7 +813,7 @@ bool lora::Register(uint8_t* buffer, uint8_t &len) {
 
 		regiterator++;
 
-    #if MAB_UCB_ENABLED
+    #if MAB_UCB_ENABLED || MAB_TS_ENABLED
 		  getTimeForBestSF(bwDC, sfDC);
     #endif
 		
@@ -1336,9 +1350,9 @@ void lora::setACK(uint8_t* message, uint8_t ack) {
 	message[3] |= ack;
 }
 
-#if MAB_UCB_ENABLED
+#if MAB_UCB_ENABLED || MAB_TS_ENABLED
 uint8_t lora::getTimeForBestSF(float currentBW, uint8_t currentSF) {
-  uint8_t bestSF = ucb.pull();
+  uint8_t bestSF = mab.pull();
   SetSF(bestSF);
   return (bestSF == currentSF) ? getMaximumTransmissionTime(currentBW, currentSF) : 0;
 }
