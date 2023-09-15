@@ -32,9 +32,7 @@
 
 #include <Arduino.h>
 
-#ifndef SERIAL_DEBUG
-  #define SERIAL_DEBUG 1
-#endif
+#define SERIAL_DEBUG 1
 
 class DH {
 	public:
