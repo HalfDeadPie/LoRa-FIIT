@@ -13,6 +13,10 @@ ThompsonSampling::ThompsonSampling()
   }
 }
 
+ThompsonSampling::~ThompsonSampling() 
+{
+}
+
 /**
  * @brief Picks the best SF according to Thompson Sampling algorithm
  * 

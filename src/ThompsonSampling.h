@@ -5,8 +5,6 @@
 #include <stdlib.h>
 
 #define DEFAULT_SF 9
-#define CAD_ENABLED 0
-#define MAB_TS_ENABLED 0
 #define TS_SCALE 1000
 
 class ThompsonSampling: private Bandit
