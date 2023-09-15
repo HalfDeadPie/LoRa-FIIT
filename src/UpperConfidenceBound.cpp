@@ -10,6 +10,11 @@ UpperConfidenceBound::UpperConfidenceBound()
   }
 }
 
+UpperConfidenceBound::~UpperConfidenceBound()
+{
+}
+
+
 /**
  * Picks the best SF for sending the next message. Utilizes machine-learning Upper Confidence Bound (UCB) algorithm.
  * @return uint8_t
