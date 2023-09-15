@@ -52,8 +52,9 @@ void lora::On() {
     setCADTimeout(20);
   #endif
 
+  // Initiate UCB arrays
   #if MAB_UCB_ENABLED 
-    ClearSFsuccessRate();
+    ucb = UpperConfidenceBound();
   #endif
 }
 
@@ -170,7 +171,7 @@ bool lora::SetCR(uint8_t codingRate) {
 }
 
 /**
- * Setting the
+ * Setting the transmission power
  * @param power
  * @param useRF0
  */
@@ -515,14 +516,14 @@ bool lora::Send(uint8_t* data, uint8_t &len) {
 			message_sent = true;
 		} else {
       #if MAB_UCB_ENABLED
-			  time = PickBestSF(bwDC);
+        time = getTimeForBestSF(bwDC, sfDC);
       #endif
 		}
 
 		_sendtime = millis() +  time;
 
 		if (message_sent) {
-			Receive(data,len);
+			Receive(data, len);
 		}
 		
 		return message_sent;
@@ -558,7 +559,7 @@ bool lora::Send(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len) {
 			message_sent = true;
 		} else {
       #if MAB_UCB_ENABLED
-			  time = PickBestSF(bwDC);
+			  time = getTimeForBestSF(bwDC, sfDC);
       #endif
 		}
 
@@ -566,21 +567,21 @@ bool lora::Send(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len) {
 
 		if (ack == ACK_MAN) {
 			uint8_t temp = len;
-			if (message_sent == false || Receive(data,len) == false) {
+			if (message_sent == false || Receive(data, len) == false) {
 				len = temp;
 
         #if MAB_UCB_ENABLED
-				  MessageSuccesfullySentOnSF(false);		
+				  ucb.update(sfDC, 0);		
         #endif
 
         return SendEmergency(data,len);
 			}
 
       #if MAB_UCB_ENABLED
-			  MessageSuccesfullySentOnSF(true);
+			  ucb.update(sfDC, 1);	
       #endif 
 		} else if (ack == ACK_OPT && message_sent == true) {
-			Receive(data,len);
+			Receive(data, len);
 		} else {
       #if CAD_ENABLED
         len = 0;
@@ -624,7 +625,7 @@ bool lora::SendHello(uint8_t* data, uint8_t &len) {
 			message_sent = true;
 		} else {
 			#if MAB_UCB_ENABLED
-        time = PickBestSF(bwDC);
+        time = getTimeForBestSF(bwDC, sfDC);
       #endif
 		}
 
@@ -664,7 +665,7 @@ bool lora::SendEmergency(uint8_t* data, uint8_t &len) {
 
       #if MAB_UCB_ENABLED
         if (iteration > 0) {
-          time = PickBestSF(bwDC);
+          time = getTimeForBestSF(bwDC, sfDC);
         }
       #endif
 
@@ -689,14 +690,14 @@ bool lora::SendEmergency(uint8_t* data, uint8_t &len) {
 
 			if (message_sent == true && Receive(data,len)) {
         #if MAB_UCB_ENABLED
-				  MessageSuccesfullySentOnSF(true);
+				  ucb.update(sfDC, 1);	
         #endif
 
 				return message_sent;
 			}
 
       #if MAB_UCB_ENABLED
-			  MessageSuccesfullySentOnSF(false);
+			  ucb.update(sfDC, 0);	
 			#endif
 
       iteration++;
@@ -767,7 +768,7 @@ bool lora::Register(uint8_t* buffer, uint8_t &len) {
 				recValue = Receive(buffer, len);
         
         #if MAB_UCB_ENABLED
-				  MessageSuccesfullySentOnSF(recValue);
+				  ucb.update(sfDC, recValue);	
         #endif
 			}	else { 
 				recValue = false;
@@ -788,7 +789,7 @@ bool lora::Register(uint8_t* buffer, uint8_t &len) {
 				recValue = Receive(buffer, len);
 
         #if MAB_UCB_ENABLED
-				  MessageSuccesfullySentOnSF(recValue);
+				  ucb.update(sfDC, recValue);
         #endif
 
 			}	else {
@@ -799,10 +800,10 @@ bool lora::Register(uint8_t* buffer, uint8_t &len) {
 		regiterator++;
 
     #if MAB_UCB_ENABLED
-		  PickBestSF(bwDC);
+		  getTimeForBestSF(bwDC, sfDC);
     #endif
 		
-    delay(1000);
+    // delay(1000);
 
 		if (regiterator == 7) {
 			return false;
@@ -818,7 +819,7 @@ bool lora::Register(uint8_t* buffer, uint8_t &len) {
  * @param len
  * @return
  */
-bool lora::Receive(uint8_t* buf, uint8_t &len) {
+uint8_t lora::Receive(uint8_t* buf, uint8_t &len) {
   spiWrite(RH_RF95_REG_33_INVERT_IQ, spiRead(RH_RF95_REG_33_INVERT_IQ)|(1<<6));
   
   #if SERIAL_DEBUG
@@ -831,13 +832,13 @@ bool lora::Receive(uint8_t* buf, uint8_t &len) {
   {
     if (!available()) {
 		  len = 0;
-		  return false;
+		  return 0;
 	  }
 
     ATOMIC_BLOCK_START;
 	  if (_bufLen < 4) {
 		  len = 0;
-		  return false;
+		  return 0;
 	  }
 	
     if (_buf[0] == DEVICE_ID1 && _buf[1] == DEVICE_ID2 && _buf[2] == DEVICE_ID3) {
@@ -852,14 +853,14 @@ bool lora::Receive(uint8_t* buf, uint8_t &len) {
 
             ProcessNetworkData(&_buf[21], _buf[20], true);
             clearRxBuf();
-            return true;
+            return 1;
           }
           break;
         case TYPE_DATA_DOWN:
           if (ProcessMessage(buf, len, false)) {
             ProcessNetworkData(&_buf[5], _buf[4], false);
             clearRxBuf();
-            return true;
+            return 1;
           }
           break;
         default: break;
@@ -869,13 +870,13 @@ bool lora::Receive(uint8_t* buf, uint8_t &len) {
 
     // This message accepted and cleared
     clearRxBuf();
-    return false;
+    return 0;
   } else {
 	  len = 0;
     #if SERIAL_DEBUG
       Serial.println(F("No reply, is there listener?"));
 	  #endif
-    return false;
+    return 0;
   }
 }
 
@@ -1265,7 +1266,7 @@ uint32_t lora::WaitDutyCycle(uint8_t len, float bw, uint8_t sf, uint8_t cr, uint
 	}
 
   #if SERIAL_DEBUG
-	  Serial.print("Time of air from waitDC: ");
+	  Serial.print(F("Time of air from waitDC: "));
 	  Serial.println(timeOffAir);
   #endif
 
@@ -1280,7 +1281,7 @@ uint32_t lora::WaitDutyCycle(uint8_t len, float bw, uint8_t sf, uint8_t cr, uint
 void lora::SetManual(bool value) {
 	if (value) {
     #if SERIAL_DEBUG
-		  Serial.println("MANUALMODE: You are responsible for respecting the DC");
+		  Serial.println(F("MANUALMODE: You are responsible for respecting the DC"));
 		#endif
     _sendtime = millis();
 	}
@@ -1334,3 +1335,11 @@ void lora::setType(uint8_t* message, uint8_t type) {
 void lora::setACK(uint8_t* message, uint8_t ack) {
 	message[3] |= ack;
 }
+
+#if MAB_UCB_ENABLED
+uint8_t lora::getTimeForBestSF(float currentBW, uint8_t currentSF) {
+  uint8_t bestSF = ucb.pull();
+  SetSF(bestSF);
+  return (bestSF == currentSF) ? getMaximumTransmissionTime(currentBW, currentSF) : 0;
+}
+#endif

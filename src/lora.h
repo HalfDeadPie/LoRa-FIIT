@@ -8,6 +8,15 @@
 #include <EEPROM.h>
 #include <math.h>
 
+#define MAB_UCB_ENABLED 1
+#define MAB_TS_ENABLED 0
+#define MANUAL_ENABLED 0
+#define CSV_OUTPUT 0
+
+#if MAB_UCB_ENABLED
+  #include <UpperConfidenceBound.h>
+#endif
+
 #define RECEIVE_TIMEOUT 3000
 #define MAX_TX_POWER 14
 #define INIT_TX_POWER 13
@@ -16,22 +25,6 @@
 #define DEFAULT_CR 5
 #define FREQ_ARRAY_SIZE 10
 #define SEQ_DIFF 10
-
-#ifndef MAB_UCB_ENABLED
-  #define MAB_UCB_ENABLED 0
-#endif
-
-#ifndef MANUAL_ENABLED
-  #define MANUAL_ENABLED 0
-#endif
-
-#ifndef SERIAL_DEBUG
-  #define SERIAL_DEBUG 0
-#endif
-
-#ifndef CSV_OUTPUT
-  #define CSV_OUTPUT 0
-#endif
 
 // Registration channels
 #define REG_CHANNEL_1  866.1 // 866.10MHz
@@ -80,11 +73,6 @@
 #define SF10 0x03
 #define SF11 0x04
 #define SF12 0x05
-#define Number_Of_SF 0x06//total number of spreading factors used in LoRa@FIIT protocol
-
-#define Max_Confidence_Bound 0x0A//maximal confidence bound for UCB to ensure exploration 
-#define SF_indexer 0x07//number of lowest spreading factor used in LoRa@FIIT protocol
-#define Default_SF 0x07//number of lowest spreading factor used in LoRa@FIIT protocol
 
 // Coding rate
 #define CR_5 B00000010 // 4/5
@@ -186,7 +174,7 @@ class lora : private RH_RF95
     unsigned long Getsendtime();
 
     /** Turn on receiving */
-    bool Receive(uint8_t* buf, uint8_t &len);
+    uint8_t Receive(uint8_t* buf, uint8_t &len);
 
     /** Register the device */
     bool Register(uint8_t* buffer, uint8_t &len);
@@ -198,21 +186,14 @@ class lora : private RH_RF95
     uint32_t WaitDutyCycle(uint8_t len, float bw, uint8_t sf, uint8_t cr, uint8_t type);
 
   private:
+    #if MAB_UCB_ENABLED
+      UpperConfidenceBound ucb;
+    #endif
+
     /** Reset pin - used for reset in On() */
     uint8_t _resetPin;
 
     bool _manual;
-
-    #if MAB_UCB_ENABLED
-      /** Stores number of all uplink messages send on each Spreading Factor*/
-      unsigned int SF_allSentMsg[7];
-      /** Stores number of all uplink messages successfully send and decoded by gateway on each Spreading Factor*/
-      unsigned int SF_OkSentMsg[7];
-      /** Stores the ration of successfully send messages to all send messages for each Spreading Factor*/
-      float SF_successRate[7];
-      /** Holds the number of all uplink messages with required ACK or the opening of recieve window send since modem was turned On*/
-      unsigned int _allSentMessages;
-    #endif
 
     /** Holds the value of Spreading Factor currently used to send uplink message on*/
     uint8_t currentSF;
@@ -267,7 +248,7 @@ class lora : private RH_RF95
     /** Returns the message length */
     uint8_t GetMessageLength(uint8_t len);
 
-    #if MAB_UCB_ENABLED || CAD_ENABLED
+    #if CAD_ENABLED
       /** Returns maximum transmission time for packet, maximum time for how long medium will be used by other device when transmission is detected */
       uint8_t getMaximumTransmissionTime(float bw, uint8_t sf);
 
@@ -284,6 +265,10 @@ class lora : private RH_RF95
 
       /** Returns minimal CAD duration based on given Spreading Factor and Bandwidth */
       unsigned long CalculateCadDuration(uint8_t spreadingFactor, float bw);
+    #endif
+
+    #if MAB_UCB_ENABLED
+      uint8_t getTimeForBestSF(float currentBW, uint8_t currentSF);
     #endif
 };
 
