@@ -865,14 +865,21 @@ uint8_t lora::Receive(uint8_t* buf, uint8_t &len) {
               Serial.println(F("Processing REGA"));
             #endif
 
-            ProcessNetworkData(&_buf[21], _buf[20], true);
+            #if !(MAB_UCB_ENABLED || MAB_TS_ENABLED)
+              ProcessNetworkData(&_buf[21], _buf[20], true);
+            #endif
+            
             clearRxBuf();
             return 1;
           }
           break;
         case TYPE_DATA_DOWN:
           if (ProcessMessage(buf, len, false)) {
-            ProcessNetworkData(&_buf[5], _buf[4], false);
+
+            #if !(MAB_UCB_ENABLED || MAB_TS_ENABLED)
+              ProcessNetworkData(&_buf[5], _buf[4], false);
+            #endif
+
             clearRxBuf();
             return 1;
           }
@@ -1052,8 +1059,11 @@ void lora::ProcessNetworkData(uint8_t* data, uint8_t len, bool reg) {
 		  uint8_t i=0;
 
 		  if (data[i] == 0) {
-			  ProcessNetworkData(data, len, true);
-			  return;
+        #if !(MAB_UCB_ENABLED || MAB_TS_ENABLED)
+			    ProcessNetworkData(data, len, true);
+        #endif
+			  
+        return;
 		  }
 
       if (len == 0) {
