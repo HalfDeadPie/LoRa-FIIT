@@ -8,8 +8,9 @@
 #include <EEPROM.h>
 #include <math.h>
 
-#define MAB_UCB_ENABLED 0
-#define MAB_TS_ENABLED 1
+#define MAB_UCB_ENABLED 1
+#define MAB_TS_ENABLED 0
+#define CAD_ENABLED 1
 #define MANUAL_ENABLED 0
 #define CSV_OUTPUT 0
 
@@ -252,6 +253,8 @@ class lora : private RH_RF95
     /** Returns the message length */
     uint8_t GetMessageLength(uint8_t len);
 
+    uint8_t integerPow(uint8_t base, uint8_t exponent);
+
     #if CAD_ENABLED
       /** Returns maximum transmission time for packet, maximum time for how long medium will be used by other device when transmission is detected */
       uint8_t getMaximumTransmissionTime(float bw, uint8_t sf);
@@ -273,6 +276,8 @@ class lora : private RH_RF95
 
     #if MAB_UCB_ENABLED || MAB_TS_ENABLED
       uint8_t getTimeForBestSF(float currentBW, uint8_t currentSF);
+      void writeNetworkData(uint8_t sf);
+      uint8_t pickBestSF(uint8_t currentSF);
     #endif
 };
 

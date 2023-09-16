@@ -49,6 +49,8 @@ void lora::On() {
   setTxPower(INIT_TX_POWER, false);	
   
   #if CAD_ENABLED
+	// This line enables CAD functionality but setting timer different than zero
+	// In default state, CAD is set to 0
     setCADTimeout(20);
   #endif
 
@@ -281,13 +283,9 @@ bool lora::SetSF(uint8_t spreadingFactor) {
    * @return
    */
   unsigned long lora::CalculateCadDuration(uint8_t spreadingFactor, float bw) {
-    unsigned long timeout = 50;
     uint32_t minimal_duration = (1UL << spreadingFactor) + 32;
-    minimal_duration = (minimal_duration + (uint32_t)(bw * 0.5)) / (uint32_t)bw;
-
-    timeout = minimal_duration + 5;
-
-    return timeout;
+    minimal_duration = (minimal_duration + (uint32_t)(bw * 0.5)) / (uint32_t) bw;
+    return minimal_duration + 5;
   }
 #endif
 
@@ -414,7 +412,7 @@ uint8_t lora::GetMessageLength(uint8_t len) {
 uint8_t lora::getMaximumTransmissionTime(float bw, uint8_t sf) {
 	uint8_t len = getMaxLen(bw, sf);
 
-	float tsymbol = pow(2,sf) / (bw * 1000);
+	float tsymbol = integerPow(2, sf) / (bw * 1000);
 	tsymbol *= 1000;
 	uint8_t optimalization = sf > 10 ? 1 : 0;
 	
@@ -514,10 +512,10 @@ bool lora::Send(uint8_t* data, uint8_t &len) {
     LoadNetworkData(TYPE_DATA_UP, GetMessageLength(len));
 
     #if MAB_UCB_ENABLED || MAB_TS_ENABLED
-      if (SendMessage(TYPE_DATA_UP, ACK_OPT, data, len)) {
+      if (SendMessage(TYPE_DATA_UP, ACK_OPT, data, len)) { // No CAD was detected, sending message
         time = WaitDutyCycle(GetMessageLength(len), bwDC, sfDC, crDC, TYPE_DATA_UP);
         message_sent = true;
-      } else {
+      } else { // A CAD was detected, switching to another channel
         time = getTimeForBestSF(bwDC, sfDC);
       }
     #else
@@ -529,7 +527,15 @@ bool lora::Send(uint8_t* data, uint8_t &len) {
 		_sendtime = millis() +  time;
 
 		if (message_sent) {
-			Receive(data, len);
+      #if MAB_UCB_ENABLED || MAB_TS_ENABLED
+        if (Receive(data, len)) {
+          mab.update(sfDC, 1);
+        } else {
+          mab.update(sfDC, 0);
+        }
+      #else
+        Receive(data, len);
+      #endif
 		}
 		
 		return message_sent;
@@ -558,16 +564,18 @@ bool lora::Send(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len) {
   // if current time is more than next available sendtime
   if (_sendtime < millis()) { 
     // calculates next available send time based on time it will take to send the message and what is the frequency range duty cycle
-		LoadNetworkData(type, GetMessageLength(len));
 
     #if MAB_UCB_ENABLED || MAB_TS_ENABLED
-      if (SendMessage(TYPE_DATA_UP, ACK_OPT, data, len)) {
+      LoadNetworkData(TYPE_DATA_UP, GetMessageLength(len));
+
+      if (SendMessage(TYPE_DATA_UP, ACK_OPT, data, len)) { 
         time = WaitDutyCycle(GetMessageLength(len), bwDC, sfDC, crDC, TYPE_DATA_UP);
         message_sent = true;
       } else {
         time = getTimeForBestSF(bwDC, sfDC);
       }
     #else
+      LoadNetworkData(type, GetMessageLength(len));
       SendMessage(TYPE_DATA_UP, ACK_OPT, data, len);
       time = WaitDutyCycle(GetMessageLength(len), bwDC, sfDC, crDC, TYPE_DATA_UP);
       message_sent = true;
@@ -890,6 +898,9 @@ uint8_t lora::Receive(uint8_t* buf, uint8_t &len) {
     ATOMIC_BLOCK_END;
 
     // This message accepted and cleared
+    #if SERIAL_DEBUG
+      Serial.println(F("Response received"));
+    #endif
     clearRxBuf();
     return 0;
   } else {
@@ -1164,26 +1175,26 @@ uint32_t lora::LoadNetworkData(uint8_t type, uint8_t len) {
 		uint8_t cr;
 		uint8_t sf;
 		uint8_t pw; 
-			
-		if (type == TYPE_DATA_UP || type == TYPE_HELLO_UP) {
-			bw = global.bwData;
-			freq = global.freqData[random(0,global.freqDataSize)];
-			cr = global.crData;
-			sf = global.sfData;
-			pw = global.pwData;
-		} else if (type == TYPE_REG_UP) {
-			bw = global.bwReg;
-			freq = global.freqReg[random(0,global.freqRegSize)];
-			cr = global.crReg;
-			sf = global.sfReg;
-			pw = global.pwReg;
-		} else if (type == TYPE_EMER_UP) {
-			bw = global.bwEmer;
-			freq = global.freqEmer[random(0,global.freqEmerSize)];
-			cr = global.crEmer;
-			sf = global.sfEmer;
-			pw = global.pwEmer;
-		}
+
+    if (type == TYPE_DATA_UP || type == TYPE_HELLO_UP) {
+      bw = global.bwData;
+      freq = global.freqData[random(0,global.freqDataSize)];
+      cr = global.crData;
+      sf = global.sfData;
+      pw = global.pwData;
+    } else if (type == TYPE_REG_UP) {
+      bw = global.bwReg;
+      freq = global.freqReg[random(0,global.freqRegSize)];
+      cr = global.crReg;
+      sf = global.sfReg;
+      pw = global.pwReg;
+    } else if (type == TYPE_EMER_UP) {
+      bw = global.bwEmer;
+      freq = global.freqEmer[random(0,global.freqEmerSize)];
+      cr = global.crEmer;
+      sf = global.sfEmer;
+      pw = global.pwEmer;
+    }
 
 		switch (bw) {
 			case 0: SetBW(500.0); bwDC = 500.0; break;
@@ -1219,16 +1230,22 @@ uint32_t lora::LoadNetworkData(uint8_t type, uint8_t len) {
 			case 3: SetCR(8); crDC = 8; break;
 			default: SetCR(5); crDC = 5; break;
 		}
-		
+
 		switch (sf) {
-			case 0: SetSF(7); sfDC = 7; break;
-			case 1: SetSF(8); sfDC = 8; break;
-			case 2: SetSF(9); sfDC = 9; break;
-			case 3: SetSF(10); sfDC = 10; break;
-			case 4: SetSF(11); sfDC = 11; break;
-			case 5: SetSF(12); sfDC = 12; break;
-			default: SetSF(7); sfDC = 7; break;
+			case 0: sfDC = 7; break;
+			case 1: sfDC = 8; break;
+			case 2: sfDC = 9; break;
+			case 3: sfDC = 10; break;
+			case 4: sfDC = 11; break;
+			case 5: sfDC = 12; break;
+			default: sfDC = 7; break;
 		}
+
+    #if MAB_UCB_ENABLED || MAB_TS_ENABLED
+      sfDC = pickBestSF(sfDC);
+    #else
+      SetSF(sfDC);
+    #endif
 
 		// 5 is minimum
 		if (pw < 5) {
@@ -1262,7 +1279,7 @@ uint32_t lora::WaitDutyCycle(uint8_t len, float bw, uint8_t sf, uint8_t cr, uint
   }
 
   // Calculate the symbol time
-	float tsymbol = pow(2,sf) / (bw * 1000);
+	float tsymbol = integerPow(2, sf) / (bw * 1000);
 	tsymbol *= 1000;
 	uint8_t optimalization = sf > 10 ? 1 : 0;
 	
@@ -1360,10 +1377,64 @@ void lora::setACK(uint8_t* message, uint8_t ack) {
 	message[3] |= ack;
 }
 
+uint8_t lora::integerPow(uint8_t base, uint8_t exponent) {
+  uint8_t result = 1;
+  
+  while (exponent > 0) {
+    if (exponent % 2 == 1) {
+      result *= base;
+    }
+    base *= base;
+    exponent /= 2;
+  }
+  
+  return result;
+}
+
+
 #if MAB_UCB_ENABLED || MAB_TS_ENABLED
-uint8_t lora::getTimeForBestSF(float currentBW, uint8_t currentSF) {
-  uint8_t bestSF = mab.pull();
+/**
+ * @brief Network Data processing
+ * 
+ * @param sf
+ */
+void lora::writeNetworkData(uint8_t sf) {
+	netconfig global;
+	EEPROM.get(0, global);
+
+  switch (sf) {
+    case 7: global.sfData = SF7; break;
+    case 8: global.sfData = SF8; break;
+    case 9: global.sfData = SF9; break;
+    case 10: global.sfData = SF10; break;
+    case 11: global.sfData = SF11; break;
+    case 12: global.sfData = SF12; break;
+  }
+
+	EEPROM.put(0, global);
+}
+
+uint8_t lora::pickBestSF(uint8_t currentSF) {
+  uint8_t bestSF = mab.pull(currentSF);
   SetSF(bestSF);
-  return (bestSF == currentSF) ? getMaximumTransmissionTime(currentBW, currentSF) : 0;
+  writeNetworkData(bestSF);
+  return bestSF;
+}
+
+/**
+ * @brief Calculate maximum transmission time for best SF
+ * 
+ * @param currentBW 
+ * @param currentSF 
+ * @return uint8_t 
+ */
+uint8_t lora::getTimeForBestSF(float currentBW, uint8_t currentSF) {
+  uint8_t bestSF = pickBestSF(currentSF);
+  
+  if (bestSF == currentSF) {
+    return getMaximumTransmissionTime(currentBW, currentSF);
+  }
+  
+  return 0;
 }
 #endif
