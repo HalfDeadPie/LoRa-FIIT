@@ -6,6 +6,8 @@
 #define MIN_SF 7
 #define MAX_SF 12
 #define NUM_SF 6
+#define NUM_FREQ 5
+#define FREQ_ENABLE 1
 
 class Bandit
 {
@@ -13,12 +15,17 @@ class Bandit
   public:
     Bandit();
     virtual ~Bandit();
-    
+
     virtual uint8_t pull(uint8_t bestSF);
 
   private:
     uint32_t rewards[NUM_SF];
     uint32_t pulls[NUM_SF];
+
+    #if FREQ_ENABLE
+      uint32_t freqRewards[NUM_FREQ];
+      uint32_t freqPulls[NUM_FREQ];
+    #endif
 
 };
 
