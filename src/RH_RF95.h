@@ -5,8 +5,6 @@
 #define DEVICE_ID2 0x10
 #define DEVICE_ID3 0x10
 
-#define CAD_ENABLED 1
-
 // Definitions for HopeRF LoRa radios per:
 // http://www.hoperf.com/upload/rf/RFM95_96_97_98W.pdf
 // http://www.hoperf.cn/upload/rfchip/RF96_97_98.pdf
