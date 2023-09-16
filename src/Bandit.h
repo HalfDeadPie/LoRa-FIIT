@@ -3,9 +3,9 @@
 
 #include <stdint.h> 
 
-#define MIN_SF 0x07
-#define MAX_SF 0x12
-#define NUM_SF 0x06
+#define MIN_SF 7
+#define MAX_SF 12
+#define NUM_SF 6
 
 class Bandit
 {
@@ -13,8 +13,8 @@ class Bandit
   public:
     Bandit();
     virtual ~Bandit();
-
-    virtual uint8_t pull();
+    
+    virtual uint8_t pull(uint8_t bestSF);
 
   private:
     uint32_t rewards[NUM_SF];
