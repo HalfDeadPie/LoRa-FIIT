@@ -19,11 +19,11 @@ UpperConfidenceBound::~UpperConfidenceBound()
  * Picks the best SF for sending the next message. Utilizes machine-learning Upper Confidence Bound (UCB) algorithm.
  * @return uint8_t
  */
-uint8_t UpperConfidenceBound::pull() {
-  uint8_t bestSF = MIN_SF;
-  int32_t maxUcbScore = ucbScore(MIN_SF);
+uint8_t UpperConfidenceBound::pull(uint8_t currentSF) {
+  uint8_t bestSF = currentSF;
+  int32_t maxUcbScore = ucbScore(currentSF);
 
-  for (uint8_t sf = MIN_SF + 1; sf <= MAX_SF; sf++) {
+  for (uint8_t sf = MIN_SF; sf <= MAX_SF; sf++) {
     int32_t score = ucbScore(sf);
 
     if (score > maxUcbScore) {

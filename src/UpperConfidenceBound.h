@@ -3,6 +3,7 @@
 
 #include "Bandit.h"
 #include <math.h>
+#include <Arduino.h>
 
 #define UCB_SCALE 10000
 
@@ -12,7 +13,7 @@ class UpperConfidenceBound: private Bandit
     UpperConfidenceBound();
     ~UpperConfidenceBound();
 
-    uint8_t pull();
+    uint8_t pull(uint8_t currentSF);
     void update(uint8_t sf, int32_t reward);
 
   private:
