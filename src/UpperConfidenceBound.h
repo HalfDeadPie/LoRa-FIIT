@@ -26,19 +26,15 @@ class UpperConfidenceBound: private Bandit
     volatile int32_t rewards[NUM_SF];
     volatile uint32_t totalPulls;
 
-    #if FREQ_ENABLE
-      volatile uint32_t freqPulls[NUM_FREQ];
-      volatile int32_t freqRewards[NUM_FREQ];
-      volatile uint32_t freqTotalPulls;
-    #endif
-
     uint32_t integerSqrt(uint32_t x);
     int32_t ucbScore(uint8_t sf);
 
     #if FREQ_ENABLE
+      volatile uint32_t freqPulls[NUM_FREQ];
+      volatile int32_t freqRewards[NUM_FREQ];
+      volatile uint32_t freqTotalPulls;
+
       int32_t freqUcbScore(uint8_t freq);
-      uint8_t freqToIdx(uint8_t freq);
-      uint8_t idxToFreq(uint8_t idx);
     #endif
 };
 
