@@ -111,6 +111,8 @@
   #define MIN_SF 7
 #endif
 
+#define CAD_TIMEOUT 1000
+
 /** Structure: Actual global configuration */
 #if !(MAB_UCB_ENABLED || MAB_TS_ENABLED)
   struct netconfig {

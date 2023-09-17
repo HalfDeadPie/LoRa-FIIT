@@ -58,7 +58,7 @@ void lora::On() {
   #if CAD_ENABLED
 	// This line enables CAD functionality but setting timer different than zero
 	// In default state, CAD is set to 0
-    setCADTimeout(20);
+    setCADTimeout(CAD_TIMEOUT);
   #endif
 
   // Initiate UCB arrays
@@ -282,7 +282,14 @@ bool lora::SetSF(uint8_t spreadingFactor) {
    */
   void lora::SetCADDuration(uint8_t spreadingFactor) {
     unsigned long timeout = CalculateCadDuration(spreadingFactor, bwDC);
+    
+    #if SERIAL_DEBUG
+      Serial.print(F("CAD timeout: "));
+      Serial.println(timeout);
+    #endif
+    
     setCADTimeout(timeout);
+    // setCADTimeout(CAD_TIMEOUT);
   }
 
   /**
