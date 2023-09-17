@@ -23,10 +23,13 @@ class Bandit
     uint32_t pulls[NUM_SF];
 
     #if FREQ_ENABLE
-      uint32_t freqRewards[NUM_FREQ];
-      uint32_t freqPulls[NUM_FREQ];
-    #endif
+        uint32_t freqRewards[NUM_FREQ];
+        uint32_t freqPulls[NUM_FREQ];
 
+      protected:
+          uint8_t freqToIdx(uint8_t freq);
+          uint8_t idxToFreq(uint8_t idx);
+    #endif
 };
 
 #endif
