@@ -35,10 +35,12 @@ uint8_t UpperConfidenceBound::pull(uint8_t currentSF) {
   for (uint8_t sf = MIN_SF; sf <= MAX_SF; sf++) {
     int32_t score = ucbScore(sf);
 
+    /*
     Serial.print("UCB score for SF ");
     Serial.print(sf);
     Serial.print(" , ");
     Serial.println(score);
+    */
 
     if (score > maxUcbScore) {
       maxUcbScore = score;
@@ -74,12 +76,14 @@ void UpperConfidenceBound::update(uint8_t sf, int32_t reward) {
     int32_t maxUcbScore = freqUcbScore(currentFreq);
 
     for (uint8_t idx = 0; idx < NUM_FREQ; idx++) {
-      int32_t score = freqUcbScore(currentFreq);
+      int32_t score = freqUcbScore(idxToFreq(idx));
 
+      /*
       Serial.print("UCB score for FREQ ");
       Serial.print(idx);
       Serial.print(" , ");
       Serial.println(score);
+      */
 
       if (score > maxUcbScore) {
         maxUcbScore = score;
@@ -136,6 +140,6 @@ uint8_t UpperConfidenceBound::idxToFreq(uint8_t idx) {
     case 2: return 35;
     case 3: return 37;
     case 4: return 39;
-    default: return 0;
+    default: return 31;
   }
 }
