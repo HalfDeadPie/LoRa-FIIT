@@ -28,6 +28,7 @@
 #define DEFAULT_CR 5
 #define FREQ_ARRAY_SIZE 10
 #define SEQ_DIFF 10
+#define BASE_FREQ 863
 
 // Registration channels
 #define REG_CHANNEL_1  866.1 // 866.10MHz
@@ -104,31 +105,48 @@
 #define SF_11 B10110000 // 2^11 = 2048 chips / symbol
 #define SF_12 B11000000 // 2^12 = 4096 chips / symbol
 
+#define MIN_CR 5
+
+#ifndef MIN_SF
+  #define MIN_SF 7
+#endif
+
 /** Structure: Actual global configuration */
-struct netconfig {
-	uint8_t freqData[FREQ_ARRAY_SIZE];
-	uint8_t freqReg[FREQ_ARRAY_SIZE];
-	uint8_t freqEmer[FREQ_ARRAY_SIZE];
-	
-	uint8_t freqDataSize;
-	uint8_t freqRegSize;
-	uint8_t freqEmerSize;
-	
-	uint8_t bwData;
-	uint8_t crData;
-	uint8_t sfData;
-	uint8_t pwData;
-	
-	uint8_t bwReg;
-	uint8_t crReg;
-	uint8_t sfReg;
-	uint8_t pwReg;
-	
-	uint8_t bwEmer;
-	uint8_t crEmer;
-	uint8_t sfEmer;
-	uint8_t pwEmer;
-};
+#if !(MAB_UCB_ENABLED || MAB_TS_ENABLED)
+  struct netconfig {
+    uint8_t freqData[FREQ_ARRAY_SIZE];
+    uint8_t freqReg[FREQ_ARRAY_SIZE];
+    uint8_t freqEmer[FREQ_ARRAY_SIZE];
+    
+    uint8_t freqDataSize;
+    uint8_t freqRegSize;
+    uint8_t freqEmerSize;
+    
+    uint8_t bwData;
+    uint8_t crData;
+    uint8_t sfData;
+    uint8_t pwData;
+    
+    uint8_t bwReg;
+    uint8_t crReg;
+    uint8_t sfReg;
+    uint8_t pwReg;
+    
+    uint8_t bwEmer;
+    uint8_t crEmer;
+    uint8_t sfEmer;
+    uint8_t pwEmer;
+  };
+#else
+  struct netconfig {
+    uint8_t freq[NUM_FREQ];
+    uint8_t freqSize;
+    uint8_t bw;
+    uint8_t cr;
+    uint8_t sf;
+    uint8_t pw;
+  };
+#endif
 
 class lora : private RH_RF95
 {
@@ -217,6 +235,7 @@ class lora : private RH_RF95
     uint8_t pwDC;
 
     float freqDataDC;
+    uint8_t freqIdxDC;
     uint8_t freqEmerDC;
     uint8_t freqRegDC;
 
@@ -241,14 +260,18 @@ class lora : private RH_RF95
     /** Message handler function */
     bool ProcessMessage(uint8_t* dataout, uint8_t &len, bool reg);
 
-    /** Network reconfiguration handler */
-    void ProcessNetworkData(uint8_t* data, uint8_t len, bool reg);
-
     /** Check the sequence number */
     bool CheckSequence(uint16_t seq);
-
-    /** Loading network configuration from global configuration structure */
-    uint32_t LoadNetworkData(uint8_t type, uint8_t len);
+    
+    #if MAB_UCB_ENABLED || MAB_TS_ENABLED
+      uint32_t LoadNetworkData();
+      void SetDefaultNetworkData();
+    #else
+      /** Loading network configuration from global configuration structure */
+      uint32_t LoadNetworkData(uint8_t type, uint8_t len);
+      /** Network reconfiguration handler */
+      void ProcessNetworkData(uint8_t* data, uint8_t len, bool reg);
+    #endif
 
     /** Returns the message length */
     uint8_t GetMessageLength(uint8_t len);
@@ -266,6 +289,11 @@ class lora : private RH_RF95
     /** Common sending function */
     bool SendMessage(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len);
 
+    float idxToFreq(uint8_t idx);
+    uint8_t freqToIdx(float freq);
+    float idxToBW(uint8_t bw);
+    uint8_t getPercentageDC(float freqdiff);
+
     #if CAD_ENABLED
       /** Sets minimal CAD duration based on given Spreading Factor */
       void SetCADDuration(uint8_t spreadingFactor);
@@ -278,6 +306,7 @@ class lora : private RH_RF95
       uint8_t getTimeForBestSF(float currentBW, uint8_t currentSF);
       void writeNetworkData(uint8_t sf);
       uint8_t pickBestSF(uint8_t currentSF);
+      uint8_t pickBestFREQ(uint8_t currentFREQ);
     #endif
 };
 

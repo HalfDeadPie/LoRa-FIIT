@@ -11,6 +11,13 @@ lora::lora(uint8_t slaveSelectPin, uint8_t interruptPin, uint8_t resetPin)
 	RH_RF95(slaveSelectPin, interruptPin)
 {
 	_resetPin = resetPin;
+
+  // Temporary to clear EEPROM when switching between ADR and MAB approach
+  /*
+  for (int i = 0; i < EEPROM.length(); i++) {
+    EEPROM.write(i, 0);
+  }
+  */
 }
 
 unsigned long lora::Getsendtime() {
@@ -509,9 +516,8 @@ bool lora::Send(uint8_t* data, uint8_t &len) {
 		  Serial.println(F("Sending message..."));
 		#endif
 
-    LoadNetworkData(TYPE_DATA_UP, GetMessageLength(len));
-
     #if MAB_UCB_ENABLED || MAB_TS_ENABLED
+      LoadNetworkData();
       if (SendMessage(TYPE_DATA_UP, ACK_OPT, data, len)) { // No CAD was detected, sending message
         time = WaitDutyCycle(GetMessageLength(len), bwDC, sfDC, crDC, TYPE_DATA_UP);
         message_sent = true;
@@ -519,6 +525,7 @@ bool lora::Send(uint8_t* data, uint8_t &len) {
         time = getTimeForBestSF(bwDC, sfDC);
       }
     #else
+      LoadNetworkData(TYPE_DATA_UP, GetMessageLength(len));
       SendMessage(TYPE_DATA_UP, ACK_OPT, data, len);
       time = WaitDutyCycle(GetMessageLength(len), bwDC, sfDC, crDC, TYPE_DATA_UP);
       message_sent = true;
@@ -530,8 +537,10 @@ bool lora::Send(uint8_t* data, uint8_t &len) {
       #if MAB_UCB_ENABLED || MAB_TS_ENABLED
         if (Receive(data, len)) {
           mab.update(sfDC, 1);
+          mab.freqUpdate(freqIdxDC, 1);
         } else {
           mab.update(sfDC, 0);
+          mab.freqUpdate(freqIdxDC, 0);
         }
       #else
         Receive(data, len);
@@ -566,7 +575,7 @@ bool lora::Send(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len) {
     // calculates next available send time based on time it will take to send the message and what is the frequency range duty cycle
 
     #if MAB_UCB_ENABLED || MAB_TS_ENABLED
-      LoadNetworkData(TYPE_DATA_UP, GetMessageLength(len));
+      LoadNetworkData();
 
       if (SendMessage(TYPE_DATA_UP, ACK_OPT, data, len)) { 
         time = WaitDutyCycle(GetMessageLength(len), bwDC, sfDC, crDC, TYPE_DATA_UP);
@@ -590,13 +599,15 @@ bool lora::Send(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len) {
 
         #if MAB_UCB_ENABLED || MAB_TS_ENABLED
 				  mab.update(sfDC, 0);
+          mab.freqUpdate(freqIdxDC, 0);
         #endif
 
         return SendEmergency(data, len);
 			}
 
       #if MAB_UCB_ENABLED || MAB_TS_ENABLED
-			  mab.update(sfDC, 1);	
+			  mab.update(sfDC, 1);
+        mab.freqUpdate(freqIdxDC, 1);
       #endif 
 		} else if (ack == ACK_OPT && message_sent == true) {
 			Receive(data, len);
@@ -636,9 +647,8 @@ bool lora::SendHello(uint8_t* data, uint8_t &len) {
 	bool message_sent = false;
 
 	if (_sendtime < millis()) {
-		LoadNetworkData(TYPE_HELLO_UP,len);
-	
     #if MAB_UCB_ENABLED || MAB_TS_ENABLED
+      LoadNetworkData();
       if (SendMessage(TYPE_HELLO_UP, ACK_OPT, data, len)) {
         time = WaitDutyCycle(GetMessageLength(len), bwDC, sfDC, crDC, TYPE_HELLO_UP);
         message_sent = true;
@@ -646,6 +656,7 @@ bool lora::SendHello(uint8_t* data, uint8_t &len) {
         time = getTimeForBestSF(bwDC, sfDC);
       }
     #else
+      LoadNetworkData(TYPE_HELLO_UP,len);
       SendMessage(TYPE_HELLO_UP, ACK_OPT, data, len);
       time = WaitDutyCycle(GetMessageLength(len), bwDC, sfDC, crDC, TYPE_HELLO_UP);
       message_sent = true;
@@ -683,15 +694,13 @@ bool lora::SendEmergency(uint8_t* data, uint8_t &len) {
 
 	do {
 	  if (_sendtime < millis()) {
-			LoadNetworkData(TYPE_EMER_UP, GetMessageLength(temp));
-
       #if MAB_UCB_ENABLED || MAB_TS_ENABLED
+        LoadNetworkData();
+
         if (iteration > 0) {
           time = getTimeForBestSF(bwDC, sfDC);
         }
-      #endif
 
-      #if CAD_ENABLED
         if (SendMessage(TYPE_EMER_UP, ACK_MAN, data, temp)) {
           time = WaitDutyCycle(GetMessageLength(temp), bwDC, sfDC, crDC, TYPE_EMER_UP);
           message_sent = true;
@@ -699,6 +708,7 @@ bool lora::SendEmergency(uint8_t* data, uint8_t &len) {
           time = getMaximumTransmissionTime(bwDC, sfDC);
         }
       #else 
+        LoadNetworkData(TYPE_EMER_UP, GetMessageLength(temp));
         SendMessage(TYPE_EMER_UP, ACK_MAN, data, temp);
         time = WaitDutyCycle(GetMessageLength(temp), bwDC, sfDC, crDC, TYPE_EMER_UP);
         message_sent = true;
@@ -712,7 +722,8 @@ bool lora::SendEmergency(uint8_t* data, uint8_t &len) {
 
 			if (message_sent == true && Receive(data,len)) {
         #if MAB_UCB_ENABLED || MAB_TS_ENABLED
-				  mab.update(sfDC, 1);	
+				  mab.update(sfDC, 1);
+          mab.freqUpdate(freqIdxDC, 1);
         #endif
 
 				return message_sent;
@@ -720,6 +731,7 @@ bool lora::SendEmergency(uint8_t* data, uint8_t &len) {
 
       #if MAB_UCB_ENABLED || MAB_TS_ENABLED
 			  mab.update(sfDC, 0);	
+        mab.freqUpdate(freqIdxDC, 0);
 			#endif
 
       iteration++;
@@ -735,8 +747,13 @@ bool lora::SendEmergency(uint8_t* data, uint8_t &len) {
 	} while(iteration < 3);
 	
 	//Emergency messages weren't acknowledged. Starting the registration process again.
-	LoadNetworkData(TYPE_REG_UP, 20);
-	len = 20;
+  #if MAB_UCB_ENABLED || MAB_TS_ENABLED
+	  LoadNetworkData();
+  #else
+    LoadNetworkData(TYPE_REG_UP, 20);
+  #endif
+  
+  len = 20;
 	Register(data, len);
 	return message_sent;
 }
@@ -790,7 +807,8 @@ bool lora::Register(uint8_t* buffer, uint8_t &len) {
 				recValue = Receive(buffer, len);
         
         #if MAB_UCB_ENABLED || MAB_TS_ENABLED
-				  mab.update(sfDC, recValue);	
+				  mab.update(sfDC, recValue);
+          mab.freqUpdate(freqIdxDC, recValue);
         #endif
 			}	else { 
 				recValue = false;
@@ -812,6 +830,7 @@ bool lora::Register(uint8_t* buffer, uint8_t &len) {
 
         #if MAB_UCB_ENABLED || MAB_TS_ENABLED
 				  mab.update(sfDC, recValue);
+          mab.freqUpdate(freqIdxDC, recValue);
         #endif
 
 			}	else {
@@ -875,6 +894,8 @@ uint8_t lora::Receive(uint8_t* buf, uint8_t &len) {
 
             #if !(MAB_UCB_ENABLED || MAB_TS_ENABLED)
               ProcessNetworkData(&_buf[21], _buf[20], true);
+            #else
+              SetDefaultNetworkData();
             #endif
             
             clearRxBuf();
@@ -985,284 +1006,301 @@ bool lora::ProcessMessage(uint8_t* dataout, uint8_t &len, bool reg) {
   return true;
 }
 
-/**
- * Net Data processing
- * @param data
- * @param len
- * @param reg
- */
-void lora::ProcessNetworkData(uint8_t* data, uint8_t len, bool reg) {
-	netconfig global;
-	EEPROM.get(0,global);
+#if MAB_UCB_ENABLED || MAB_TS_ENABLED
+  void lora::SetDefaultNetworkData() {
+    netconfig global;
+    EEPROM.get(0, global);
 
-	if (reg) {
-		// Downlink reg must be full
-		if (data[0] != 0) {
-      return;
+    global.bw = 2;
+    global.cr = 2;
+    global.sf = SF9;
+    global.pw = 14;
+    global.freqSize = 5;
+
+    for (uint8_t idx = 0, freq = 31; idx < global.freqSize; idx++, freq += 2) {
+      global.freq[idx] = freq;
     }
 
-		uint8_t i = 1;
-		if (len == 0) {
-      return;
-    }
+    // Begin with random frequency
+    freqIdxDC = global.freq[random(0, global.freqSize)];
 
-		while (i < len) {
-			uint8_t j;
+    EEPROM.put(0, global);
+  }
+#else
+  /**
+   * @brief Net Data processing
+   * 
+   * @param data
+   * @param len
+   * @param reg
+   */
+  void lora::ProcessNetworkData(uint8_t* data, uint8_t len, bool reg) {
+    netconfig global;
+    EEPROM.get(0, global);
 
-			switch ((data[i] & MASK_MSB)) {
-				case REC_D_FRQ:
-					global.freqDataSize = data[i] & MASK_LSB;
-					for (j = 0; j<(data[i] & MASK_LSB); j++) {
-						global.freqData[j] = data[i + 1 + j];
-					}
-
-          // Jump to BW from freq type and num
-					i += j + 1;
-					global.bwData = data[i] & MASK_MSB;
-					global.bwData = global.bwData >> 4;
-					global.crData = data[i] & MASK_LSB;
-					i++;
-					global.pwData = data[i] & MASK_MSB;
-					global.pwData = global.pwData >> 4;
-					global.sfData = data[i] & MASK_LSB;
-					i++;
-					break;
-					
-				case REC_R_FRQ:
-					global.freqRegSize = data[i] & MASK_LSB;
-					for (j = 0; j< (data[i] & MASK_LSB); j++) {
-						global.freqReg[j] = data[i + 1 + j];
-					}
-
-          // Jump to BW from freq type and num
-					i += j + 1;
-					global.bwReg = data[i] & MASK_MSB;
-					global.bwReg = global.bwReg >> 4;
-					global.crReg = data[i] & MASK_LSB;
-					i++;
-					global.pwReg = data[i] & MASK_MSB;
-					global.pwReg = global.pwReg >> 4;
-					global.sfReg = data[i] & MASK_LSB;
-					i++;
-					break;
-				
-				case REC_E_FRQ:
-					global.freqEmerSize = data[i] & MASK_LSB;
-
-					for (j = 0; j<(data[i] & MASK_LSB); j++) {
-						global.freqEmer[j] = data[i + 1 + j];
-					}
-
-          // Jump to BW from freq type and num
-					i += j + 1;
-					global.bwEmer = data[i] & MASK_MSB;
-					global.bwEmer = global.bwEmer >> 4;
-					global.crEmer = data[i] & MASK_LSB;
-					i++;
-					global.pwEmer = data[i] & MASK_MSB;
-					global.pwEmer = global.pwEmer >> 4;
-					global.sfEmer = data[i] & MASK_LSB;
-					i++;
-					break;
-			  }
-		  }
-		} else {
-		  uint8_t i=0;
-
-		  if (data[i] == 0) {
-        #if !(MAB_UCB_ENABLED || MAB_TS_ENABLED)
-			    ProcessNetworkData(data, len, true);
-        #endif
-			  
+    if (reg) {
+      // Downlink reg must be full
+      if (data[0] != 0) {
         return;
-		  }
+      }
 
+      uint8_t i = 1;
       if (len == 0) {
         return;
       }
 
       while (i < len) {
         uint8_t j;
+
         switch ((data[i] & MASK_MSB)) {
           case REC_D_FRQ:
             global.freqDataSize = data[i] & MASK_LSB;
-            for (j = 0; j< (data[i] & MASK_LSB); j++) {
+            for (j = 0; j<(data[i] & MASK_LSB); j++) {
               global.freqData[j] = data[i + 1 + j];
             }
-            i += j + 1; // jump to next
+
+            // Jump to BW from freq type and num
+            i += j + 1;
+            global.bwData = data[i] & MASK_MSB;
+            global.bwData = global.bwData >> 4;
+            global.crData = data[i] & MASK_LSB;
+            i++;
+            global.pwData = data[i] & MASK_MSB;
+            global.pwData = global.pwData >> 4;
+            global.sfData = data[i] & MASK_LSB;
+            i++;
             break;
+            
           case REC_R_FRQ:
             global.freqRegSize = data[i] & MASK_LSB;
             for (j = 0; j< (data[i] & MASK_LSB); j++) {
               global.freqReg[j] = data[i + 1 + j];
             }
-            i += j + 1; // jump to next
-            break;
-          case REC_E_FRQ:
-            global.freqEmerSize = data[i] & MASK_LSB;
-            for (j = 0; j< (data[i] & MASK_LSB); j++) {
-              global.freqEmer[j] = data[i + 1 + j];
-            }
-            i += j + 1; // jump to next
-            break;
-          case REC_D_BW:
-            global.bwData = data[i] & MASK_LSB;
-            i++;
-            break;
-          case REC_R_BW:
-            global.bwReg = data[i] & MASK_LSB;
-            i++;
-            break;
-          case REC_E_BW:
-            global.bwEmer = data[i] & MASK_LSB;
-            i++;
-            break;
-          case REC_D_CR:
-            global.crData = data[i] & MASK_LSB;
-            i++;
-            break;
-          case REC_R_CR:
+
+            // Jump to BW from freq type and num
+            i += j + 1;
+            global.bwReg = data[i] & MASK_MSB;
+            global.bwReg = global.bwReg >> 4;
             global.crReg = data[i] & MASK_LSB;
             i++;
-            break;
-          case REC_E_CR:
-            global.crEmer = data[i] & MASK_LSB;
-            i++;
-            break;
-          case REC_D_PW:
-            global.pwData = data[i] & MASK_LSB;
-            i++;
-            break;
-          case REC_R_PW:
-            global.pwReg = data[i] & MASK_LSB;
-            i++;
-            break;
-          case REC_E_PW:
-            global.pwEmer = data[i] & MASK_LSB;
-            i++;
-            break;
-          case REC_D_SF:
-            global.sfData = data[i] & MASK_LSB;
-            i++;
-            break;
-          case REC_R_SF:
+            global.pwReg = data[i] & MASK_MSB;
+            global.pwReg = global.pwReg >> 4;
             global.sfReg = data[i] & MASK_LSB;
             i++;
             break;
-          case REC_E_SF:
+          
+          case REC_E_FRQ:
+            global.freqEmerSize = data[i] & MASK_LSB;
+
+            for (j = 0; j<(data[i] & MASK_LSB); j++) {
+              global.freqEmer[j] = data[i + 1 + j];
+            }
+
+            // Jump to BW from freq type and num
+            i += j + 1;
+            global.bwEmer = data[i] & MASK_MSB;
+            global.bwEmer = global.bwEmer >> 4;
+            global.crEmer = data[i] & MASK_LSB;
+            i++;
+            global.pwEmer = data[i] & MASK_MSB;
+            global.pwEmer = global.pwEmer >> 4;
             global.sfEmer = data[i] & MASK_LSB;
             i++;
             break;
+          }
+        }
+      } else {
+        uint8_t i=0;
+
+        if (data[i] == 0) {
+          #if !(MAB_UCB_ENABLED || MAB_TS_ENABLED)
+            ProcessNetworkData(data, len, true);
+          #endif
+          
+          return;
+        }
+
+        if (len == 0) {
+          return;
+        }
+
+        while (i < len) {
+          uint8_t j;
+          switch ((data[i] & MASK_MSB)) {
+            case REC_D_FRQ:
+              global.freqDataSize = data[i] & MASK_LSB;
+              for (j = 0; j< (data[i] & MASK_LSB); j++) {
+                global.freqData[j] = data[i + 1 + j];
+              }
+              i += j + 1; // jump to next
+              break;
+            case REC_R_FRQ:
+              global.freqRegSize = data[i] & MASK_LSB;
+              for (j = 0; j< (data[i] & MASK_LSB); j++) {
+                global.freqReg[j] = data[i + 1 + j];
+              }
+              i += j + 1; // jump to next
+              break;
+            case REC_E_FRQ:
+              global.freqEmerSize = data[i] & MASK_LSB;
+              for (j = 0; j< (data[i] & MASK_LSB); j++) {
+                global.freqEmer[j] = data[i + 1 + j];
+              }
+              i += j + 1; // jump to next
+              break;
+            case REC_D_BW:
+              global.bwData = data[i] & MASK_LSB;
+              i++;
+              break;
+            case REC_R_BW:
+              global.bwReg = data[i] & MASK_LSB;
+              i++;
+              break;
+            case REC_E_BW:
+              global.bwEmer = data[i] & MASK_LSB;
+              i++;
+              break;
+            case REC_D_CR:
+              global.crData = data[i] & MASK_LSB;
+              i++;
+              break;
+            case REC_R_CR:
+              global.crReg = data[i] & MASK_LSB;
+              i++;
+              break;
+            case REC_E_CR:
+              global.crEmer = data[i] & MASK_LSB;
+              i++;
+              break;
+            case REC_D_PW:
+              global.pwData = data[i] & MASK_LSB;
+              i++;
+              break;
+            case REC_R_PW:
+              global.pwReg = data[i] & MASK_LSB;
+              i++;
+              break;
+            case REC_E_PW:
+              global.pwEmer = data[i] & MASK_LSB;
+              i++;
+              break;
+            case REC_D_SF:
+              global.sfData = data[i] & MASK_LSB;
+              i++;
+              break;
+            case REC_R_SF:
+              global.sfReg = data[i] & MASK_LSB;
+              i++;
+              break;
+            case REC_E_SF:
+              global.sfEmer = data[i] & MASK_LSB;
+              i++;
+              break;
+          }
         }
       }
-    }
-	EEPROM.put(0,global);
-}
+    EEPROM.put(0,global);
+  }
+#endif
 
-/**
- * Leading network data
- * @param type
- * @param len
- * @return
- */
-uint32_t lora::LoadNetworkData(uint8_t type, uint8_t len) {
-	if (!_manual) {
-		netconfig global;
-		EEPROM.get(0,global);
-		
-		uint8_t bw;
-		uint8_t freq;
-		uint8_t cr;
-		uint8_t sf;
-		uint8_t pw; 
+#if MAB_UCB_ENABLED || MAB_TS_ENABLED
+  uint32_t lora::LoadNetworkData() {
+    if (!_manual) {
+      netconfig global;
+      EEPROM.get(0, global);
+      
+      uint8_t bw = global.bw;
+      uint8_t freq = mab.freqPull(freqIdxDC);
+      uint8_t cr = global.cr;
+      uint8_t sf = global.sf;
+      uint8_t pw = global.pw; 
 
-    if (type == TYPE_DATA_UP || type == TYPE_HELLO_UP) {
-      bw = global.bwData;
-      freq = global.freqData[random(0,global.freqDataSize)];
-      cr = global.crData;
-      sf = global.sfData;
-      pw = global.pwData;
-    } else if (type == TYPE_REG_UP) {
-      bw = global.bwReg;
-      freq = global.freqReg[random(0,global.freqRegSize)];
-      cr = global.crReg;
-      sf = global.sfReg;
-      pw = global.pwReg;
-    } else if (type == TYPE_EMER_UP) {
-      bw = global.bwEmer;
-      freq = global.freqEmer[random(0,global.freqEmerSize)];
-      cr = global.crEmer;
-      sf = global.sfEmer;
-      pw = global.pwEmer;
-    }
+      bwDC = idxToBW(bw);
+      SetBW(bwDC);
+      
+      float freqdiff = idxToFreq(freq);
+      SetFrequency(freqdiff);
+      freqDataDC = freqdiff;
+      freqIdxDC = freq;
 
-		switch (bw) {
-			case 0: SetBW(500.0); bwDC = 500.0; break;
-			case 1: SetBW(250.0); bwDC = 250.0; break;
-			case 2: SetBW(125.0); bwDC = 125.0; break;
-			case 3: SetBW(62.5); bwDC = 62.5; break;
-			case 4: SetBW(41.7); bwDC = 41.7; break;
-			case 5: SetBW(31.25); bwDC = 31.25;  break;
-			case 6: SetBW(20.8); bwDC = 20.8; break;
-			case 7: SetBW(15.6); bwDC = 15.6; break;
-			case 8: SetBW(10.4); bwDC = 10.4; break;
-			case 9: SetBW(7.8); bwDC = 7.8; break;
-			default: SetBW(125.0); bwDC = 125.0; break;
-		}
-		
-		float freqdiff = freq / 10.0;
-		freqdiff += 863;
-		SetFrequency(freqdiff);
-    freqDataDC = freqdiff;
+      crDC = cr + MIN_CR;
+      SetCR(crDC);
 
-		if ((865.0 <= freqdiff && freqdiff <= 868.6) || (869.7 <= freqdiff && freqdiff <= 870.0)) {
-			percentageDC = 1;
-		} else if (868.7 <= freqdiff && freqdiff <= 869.2) {
-			percentageDC = 0;
-		} else if (869.4 <= freqdiff && freqdiff <= 869.65) {
-			percentageDC = 10;
-		}
-		
-		switch (cr) {
-			case 0: SetCR(5); crDC = 5; break;
-			case 1: SetCR(6); crDC = 6; break;
-			case 2: SetCR(7); crDC = 7;	break;
-			case 3: SetCR(8); crDC = 8; break;
-			default: SetCR(5); crDC = 5; break;
-		}
-
-		switch (sf) {
-			case 0: sfDC = 7; break;
-			case 1: sfDC = 8; break;
-			case 2: sfDC = 9; break;
-			case 3: sfDC = 10; break;
-			case 4: sfDC = 11; break;
-			case 5: sfDC = 12; break;
-			default: sfDC = 7; break;
-		}
-
-    #if MAB_UCB_ENABLED || MAB_TS_ENABLED
+      sfDC = sf + MIN_SF;
       sfDC = pickBestSF(sfDC);
-    #else
+
+      // 5 is minimum
+      if (pw < 5) {
+        pw = 5;
+      }
+
+      // Not more than maximum TX power
+      if (pw > MAX_TX_POWER) {
+        pw = MAX_TX_POWER;
+      }
+
+      SetPW(pw, false);
+      pwDC = pw;
+    }
+
+    return 0;
+  }
+#else
+  uint32_t lora::LoadNetworkData(uint8_t type, uint8_t len) {
+    if (!_manual) {
+      netconfig global;
+      EEPROM.get(0, global);
+      
+      uint8_t bw, freq, cr, sf, pw; 
+
+      if (type == TYPE_DATA_UP || type == TYPE_HELLO_UP) {
+        bw = global.bwData;
+        freq = global.freqData[random(0,global.freqDataSize)];
+        cr = global.crData;
+        sf = global.sfData;
+        pw = global.pwData;
+      } else if (type == TYPE_REG_UP) {
+        bw = global.bwReg;
+        freq = global.freqReg[random(0,global.freqRegSize)];
+        cr = global.crReg;
+        sf = global.sfReg;
+        pw = global.pwReg;
+      } else if (type == TYPE_EMER_UP) {
+        bw = global.bwEmer;
+        freq = global.freqEmer[random(0,global.freqEmerSize)];
+        cr = global.crEmer;
+        sf = global.sfEmer;
+        pw = global.pwEmer;
+      }
+
+      float freqdiff = idxToFreq(freq);
+      freqDataDC = freqdiff;
+      SetFrequency(freqdiff);
+
+      bwDC = idxToBW(bw);
+      percentageDC = getPercentageDC(freqDataDC);
+      crDC = cr + MIN_CR;
+      SetCR(crDC);
+      sfDC = sf + MIN_SF;
       SetSF(sfDC);
-    #endif
 
-		// 5 is minimum
-		if (pw < 5) {
-			pw = 5;
-		}
+      // 5 is minimum
+      if (pw < 5) {
+        pw = 5;
+      }
 
-		// Not more than maximum TX power
-		if (pw > MAX_TX_POWER) {
-			pw = MAX_TX_POWER;
-		}
+      // Not more than maximum TX power
+      if (pw > MAX_TX_POWER) {
+        pw = MAX_TX_POWER;
+      }
 
-		SetPW(pw, false);
-    pwDC = pw;
-	}
+      SetPW(pw, false);
+      pwDC = pw;
+    }
 
-	return 0;
-}
+    return 0;
+  }
+#endif
 
 /**
  * Waiting for duty cycle
@@ -1391,6 +1429,41 @@ uint8_t lora::integerPow(uint8_t base, uint8_t exponent) {
   return result;
 }
 
+uint8_t lora::getPercentageDC(float freqdiff) 
+{
+  if ((865.0 <= freqdiff && freqdiff <= 868.6) || (869.7 <= freqdiff && freqdiff <= 870.0)) {
+    return 1;
+  } else if (868.7 <= freqdiff && freqdiff <= 869.2) {
+    return 0;
+  } else if (869.4 <= freqdiff && freqdiff <= 869.65) {
+    return 10;
+  }
+  return 1;
+}
+
+float lora::idxToFreq(uint8_t idx) {
+  return (idx / 10.0) + BASE_FREQ;
+}
+
+uint8_t lora::freqToIdx(float freq) {
+  return (freq - BASE_FREQ) * 10.0;
+}
+
+float lora::idxToBW(uint8_t bw) { 
+  switch (bw) {
+    case 0: return 500.0;
+    case 1: return 250.0;
+    case 2: return 125.0;
+    case 3: return 62.5;
+    case 4: return 41.7;
+    case 5: return 31.25;
+    case 6: return 20.8;
+    case 7: return 15.6;
+    case 8: return 10.4;
+    case 9: return 7.8;
+    default: return 125.0;
+  }
+}
 
 #if MAB_UCB_ENABLED || MAB_TS_ENABLED
 /**
@@ -1403,12 +1476,12 @@ void lora::writeNetworkData(uint8_t sf) {
 	EEPROM.get(0, global);
 
   switch (sf) {
-    case 7: global.sfData = SF7; break;
-    case 8: global.sfData = SF8; break;
-    case 9: global.sfData = SF9; break;
-    case 10: global.sfData = SF10; break;
-    case 11: global.sfData = SF11; break;
-    case 12: global.sfData = SF12; break;
+    case 7: global.sf = SF7; break;
+    case 8: global.sf = SF8; break;
+    case 9: global.sf = SF9; break;
+    case 10: global.sf = SF10; break;
+    case 11: global.sf = SF11; break;
+    case 12: global.sf = SF12; break;
   }
 
 	EEPROM.put(0, global);
@@ -1419,6 +1492,12 @@ uint8_t lora::pickBestSF(uint8_t currentSF) {
   SetSF(bestSF);
   writeNetworkData(bestSF);
   return bestSF;
+}
+
+uint8_t lora::pickBestFREQ(uint8_t currentFREQ) {
+  uint8_t bestFREQ = mab.freqPull(currentFREQ);
+  SetFrequency(idxToFreq(bestFREQ));
+  return bestFREQ;
 }
 
 /**
