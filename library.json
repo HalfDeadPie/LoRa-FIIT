@@ -1,0 +1,33 @@
+{
+    "name": "LoRaFIIT",
+    "version": "0.0.2",
+    "description": "This repository contains the software library LoRa@FIIT for Arduino. This library is the implementation of the LoRa@FIIT protocol. The library uses external library RadioHead,source codes of the XXTEA algorithm and the code of the Diffie-Hellman key exchange.",
+    "keywords": "iot, lora, lorafiit, atmelavr",
+    "repository":
+    {
+      "type": "git",
+      "url": "https://github.com/loraalex/LoRaFIIT.git"
+    },
+    "authors":
+    [
+      {
+        "name": "Simon Štefunko",
+        "url": "https://github.com/HalfDeadPie"
+      },
+      {
+        "name": "Alexander Valach",
+        "url": "https://github.com/alexandervalach",
+        "maintainer": true
+      },
+      {
+        "name": "Michal Greguš",
+        "url": "https://github.com/mgregus"
+      }
+    ],
+    "license": "MIT",
+    "homepage": "https://github.com/loraalex",
+    "dependencies": {
+    },
+    "frameworks": "arduino",
+    "platforms": "atmelavr"
+  }

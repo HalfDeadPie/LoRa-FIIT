@@ -1,13 +1,24 @@
 #ifndef lora_h
 #define lora_h
 
-#define DEBUG 1
-
 #include <SPI.h>
 #include "RH_RF95.h"
 #include "DH.h"
 #include "Encryption.h"
 #include <EEPROM.h>
+#include <math.h>
+
+#define MAB_UCB_ENABLED 1
+#define MAB_TS_ENABLED 0
+#define CAD_ENABLED 1
+#define MANUAL_ENABLED 0
+#define CSV_OUTPUT 0
+
+#if MAB_UCB_ENABLED
+  #include <UpperConfidenceBound.h>
+#elif MAB_TS_ENABLED
+  #include <ThompsonSampling.h>
+#endif
 
 #define RECEIVE_TIMEOUT 3000
 #define MAX_TX_POWER 14
@@ -17,20 +28,14 @@
 #define DEFAULT_CR 5
 #define FREQ_ARRAY_SIZE 10
 #define SEQ_DIFF 10
-
-// Hardcoded device ID value
-/*
-#define DEVICE_ID1 0x41
-#define DEVICE_ID2 0x41
-#define DEVICE_ID3 0x41
-*/
+#define BASE_FREQ 863
 
 // Registration channels
 #define REG_CHANNEL_1  866.1 // 866.10MHz
 #define REG_CHANNEL_2  863.8 // 866.40MHz
 #define REG_CHANNEL_3 866.5 // 866.70MHz
-#define  REG_CHANNEL_4  866.7 // 867.00MHz
-#define  REG_CHANNEL_5  866.9 // 868.00MHz
+#define REG_CHANNEL_4  866.7 // 867.00MHz
+#define REG_CHANNEL_5  866.9 // 868.00MHz
 
 #define TYPE_REG_UP 0x00
 #define TYPE_DATA_UP 0x20
@@ -72,64 +77,78 @@
 #define SF10 0x03
 #define SF11 0x04
 #define SF12 0x05
-#define Number_Of_SF 0x06//total number of spreading factors used in LoRa@FIIT protocol
-
-#define Max_Confidence_Bound 0x0A//maximal confidence bound for UCB to ensure exploration 
-#define SF_indexer 0x07//number of lowest spreading factor used in LoRa@FIIT protocol
-#define Default_SF 0x07//number of lowest spreading factor used in LoRa@FIIT protocol
 
 // Coding rate
-const byte CR_5 = B00000010; // 4/5
-const byte CR_6 = B00000100; // 4/6
-const byte CR_7 = B00000110; // 4/7
-const byte CR_8 = B00001000; // 4/8
+#define CR_5 B00000010 // 4/5
+#define CR_6 B00000100 // 4/6
+#define CR_7 B00000110 // 4/7
+#define CR_8 B00001000 // 4/8
 
 // Bandwidth
-const byte BW_7_8 = B00000000; // 7.8 kHz
-const byte BW_10_4 = B00010000; // 10.4 kHz
-const byte BW_15_6 = B00100000; // 15.6 kHz
-const byte BW_20_8 = B00110000; // 20.8 kHz
-const byte BW_31_25 = B01000000; // 31.25 kHz
-const byte BW_41_7 = B01010000; // 41.7 kHz
-const byte BW_62_5 = B01100000; // 62.5 kHz
-const byte BW_125 = B01110000; // 125 kHz
-const byte BW_250 = B10000000; // 250 kHz
-const byte BW_500 = B10010000; // 500 kHz
+#define BW_7_8 B00000000 // 7.8 kHz
+#define BW_10_4 B00010000 // 10.4 kHz
+#define BW_15_6 B00100000 // 15.6 kHz
+#define BW_20_8 B00110000 // 20.8 kHz
+#define BW_31_25 B01000000 // 31.25 kHz
+#define BW_41_7 B01010000 // 41.7 kHz
+#define BW_62_5 B01100000 // 62.5 kHz
+#define BW_125 B01110000 // 125 kHz
+#define BW_250 B10000000 // 250 kHz
+#define BW_500 B10010000 // 500 kHz
 
 // Spreading factor
-const byte SF_6 = B01100000; // 2^6 = 64 chips / symbol
-const byte SF_7 = B01110000; // 2^7 = 128 chips / symbol
-const byte SF_8 = B10000000; // 2^8 = 256 chips / symbol
-const byte SF_9 = B10010000; // 2^9 = 512 chips / symbol
-const byte SF_10 = B10100000; // 2^10 = 1024 chips / symbol
-const byte SF_11 = B10110000; // 2^11 = 2048 chips / symbol
-const byte SF_12 = B11000000; // 2^12 = 4096 chips / symbol
+#define SF_6 B01100000 // 2^6 = 64 chips / symbol
+#define SF_7 B01110000 // 2^7 = 128 chips / symbol
+#define SF_8 B10000000 // 2^8 = 256 chips / symbol
+#define SF_9 B10010000 // 2^9 = 512 chips / symbol
+#define SF_10 B10100000 // 2^10 = 1024 chips / symbol
+#define SF_11 B10110000 // 2^11 = 2048 chips / symbol
+#define SF_12 B11000000 // 2^12 = 4096 chips / symbol
+
+#define MIN_CR 5
+
+#ifndef MIN_SF
+  #define MIN_SF 7
+#endif
+
+#define CAD_TIMEOUT 1000
 
 /** Structure: Actual global configuration */
-struct netconfig {
-	uint8_t freqData[FREQ_ARRAY_SIZE];
-	uint8_t freqReg[FREQ_ARRAY_SIZE];
-	uint8_t freqEmer[FREQ_ARRAY_SIZE];
-	
-	uint8_t freqDataSize;
-	uint8_t freqRegSize;
-	uint8_t freqEmerSize;
-	
-	uint8_t bwData;
-	uint8_t crData;
-	uint8_t sfData;
-	uint8_t pwData;
-	
-	uint8_t bwReg;
-	uint8_t crReg;
-	uint8_t sfReg;
-	uint8_t pwReg;
-	
-	uint8_t bwEmer;
-	uint8_t crEmer;
-	uint8_t sfEmer;
-	uint8_t pwEmer;
-};
+#if !(MAB_UCB_ENABLED || MAB_TS_ENABLED)
+  struct netconfig {
+    uint8_t freqData[FREQ_ARRAY_SIZE];
+    uint8_t freqReg[FREQ_ARRAY_SIZE];
+    uint8_t freqEmer[FREQ_ARRAY_SIZE];
+    
+    uint8_t freqDataSize;
+    uint8_t freqRegSize;
+    uint8_t freqEmerSize;
+    
+    uint8_t bwData;
+    uint8_t crData;
+    uint8_t sfData;
+    uint8_t pwData;
+    
+    uint8_t bwReg;
+    uint8_t crReg;
+    uint8_t sfReg;
+    uint8_t pwReg;
+    
+    uint8_t bwEmer;
+    uint8_t crEmer;
+    uint8_t sfEmer;
+    uint8_t pwEmer;
+  };
+#else
+  struct netconfig {
+    uint8_t freq[NUM_FREQ];
+    uint8_t freqSize;
+    uint8_t bw;
+    uint8_t cr;
+    uint8_t sf;
+    uint8_t pw;
+  };
+#endif
 
 class lora : private RH_RF95
 {
@@ -162,7 +181,10 @@ class lora : private RH_RF95
     void Awake();
 
     void Sleep();
-    void SetManual(bool value);
+    
+    #if MANUAL_ENABLED
+      void SetManual(bool value);
+    #endif
 
     /** Send basic data message with ack */
     bool Send(uint8_t* data, uint8_t &len);
@@ -175,7 +197,7 @@ class lora : private RH_RF95
     unsigned long Getsendtime();
 
     /** Turn on receiving */
-    bool Receive(uint8_t* buf, uint8_t &len);
+    uint8_t Receive(uint8_t* buf, uint8_t &len);
 
     /** Register the device */
     bool Register(uint8_t* buffer, uint8_t &len);
@@ -187,19 +209,16 @@ class lora : private RH_RF95
     uint32_t WaitDutyCycle(uint8_t len, float bw, uint8_t sf, uint8_t cr, uint8_t type);
 
   private:
+    #if MAB_UCB_ENABLED
+      UpperConfidenceBound mab;
+    #elif MAB_TS_ENABLED
+      ThompsonSampling mab;
+    #endif
+
     /** Reset pin - used for reset in On() */
     uint8_t _resetPin;
 
     bool _manual;
-
-    /** Stores number of all uplink messages send on each Spreading Factor*/
-    unsigned int SF_allSentMsg[7];
-    /** Stores number of all uplink messages successfully send and decoded by gateway on each Spreading Factor*/
-    unsigned int SF_OkSentMsg[7];
-    /** Stores the ration of successfully send messages to all send messages for each Spreading Factor*/
-    float SF_successRate[7];
-    /** Holds the number of all uplink messages with required ACK or the opening of recieve window send since modem was turned On*/
-    unsigned int _allSentMessages;
 
     /** Holds the value of Spreading Factor currently used to send uplink message on*/
     uint8_t currentSF;
@@ -214,6 +233,13 @@ class lora : private RH_RF95
     uint8_t maxCR_DC = 8;
     /** Holds the current spreading factor on which uplink messages are being send*/
     uint8_t sfDC;
+
+    uint8_t pwDC;
+
+    float freqDataDC;
+    uint8_t freqIdxDC;
+    uint8_t freqEmerDC;
+    uint8_t freqRegDC;
 
     /** Diffie-Hellman key */
     DH dhkey1;
@@ -236,50 +262,54 @@ class lora : private RH_RF95
     /** Message handler function */
     bool ProcessMessage(uint8_t* dataout, uint8_t &len, bool reg);
 
-    /** Network reconfiguration handler */
-    void ProcessNetworkData(uint8_t* data, uint8_t len, bool reg);
-
     /** Check the sequence number */
     bool CheckSequence(uint16_t seq);
-
-    /** Loading network configuration from global configuration structure */
-    uint32_t LoadNetworkData(uint8_t type, uint8_t len);
+    
+    #if MAB_UCB_ENABLED || MAB_TS_ENABLED
+      uint32_t LoadNetworkData();
+      void SetDefaultNetworkData();
+    #else
+      /** Loading network configuration from global configuration structure */
+      uint32_t LoadNetworkData(uint8_t type, uint8_t len);
+      /** Network reconfiguration handler */
+      void ProcessNetworkData(uint8_t* data, uint8_t len, bool reg);
+    #endif
 
     /** Returns the message length */
     uint8_t GetMessageLength(uint8_t len);
 
-    /** Returns the 0 if Spreading Factor does not change otherwise it returns maximum transmission time on a given SF */
-    uint8_t PickBestSF(float bw);
+    uint8_t integerPow(uint8_t base, uint8_t exponent);
 
-    /** Sets minimal CAD duration based on given Spreading Factor */
-    void SetCADDuration(uint8_t spreadingFactor);
+    #if CAD_ENABLED
+      /** Returns maximum transmission time for packet, maximum time for how long medium will be used by other device when transmission is detected */
+      uint8_t getMaximumTransmissionTime(float bw, uint8_t sf);
 
-    /** Returns minimal CAD duration based on given Spreading Factor and Bandwidth */
-    unsigned long lora::CalculateCadDuration(uint8_t spreadingFactor, float bw);
-
-    /** Returns the Spreading Factor success rate */
-    void CalculateSFSuccessRate();
-
-    /** Returns the Spreading Factor success rate based on number of succesfully sent messages on that Spreading Factor to number of all messages sent on that Spreading Factor */
-    float getSFsuccessRate(uint8_t okSentMessages, uint8_t allSentMessages);
-
-    /** sets message rate for Spreading Factor, number of succesfully send messages and number of all messages sent */
-    bool MessageSuccesfullySentOnSF(bool successfullySent);
-
-    /** Returns maximum transmission time for packet, maximum time for how long medium will be used by other device when transmission is detected */
-    uint8_t getMaximumTransmissionTime(float bw, uint8_t sf);
-
-    /** Returns maximum length of application data in a packet based on communication parameters */
-    uint8_t getMaxLen(float bw, uint8_t sf);
-
-    /** sets success rate for each Spreading Factor to zero */
-    void ClearSFsuccessRate();
+      /** Returns maximum length of application data in a packet based on communication parameters */
+      uint8_t getMaxLen(float bw, uint8_t sf);
+    #endif
 
     /** Common sending function */
     bool SendMessage(uint8_t type, uint8_t ack, uint8_t* data, uint8_t &len);
 
-    /** Upper Confidence Bound algorithmic function to determine the best Spreading Factor to send the next message on */
-    uint8_t UCB();
+    float idxToFreq(uint8_t idx);
+    uint8_t freqToIdx(float freq);
+    float idxToBW(uint8_t bw);
+    uint8_t getPercentageDC(float freqdiff);
+
+    #if CAD_ENABLED
+      /** Sets minimal CAD duration based on given Spreading Factor */
+      void SetCADDuration(uint8_t spreadingFactor);
+
+      /** Returns minimal CAD duration based on given Spreading Factor and Bandwidth */
+      unsigned long CalculateCadDuration(uint8_t spreadingFactor, float bw);
+    #endif
+
+    #if MAB_UCB_ENABLED || MAB_TS_ENABLED
+      uint8_t getTimeForBestSF(float currentBW, uint8_t currentSF);
+      void writeNetworkData(uint8_t sf);
+      uint8_t pickBestSF(uint8_t currentSF);
+      uint8_t pickBestFREQ(uint8_t currentFREQ);
+    #endif
 };
 
 #endif

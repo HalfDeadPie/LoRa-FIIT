@@ -251,11 +251,15 @@ bool RH_RF95::send(const uint8_t* data, uint8_t len)
     setModeIdle();
 
     if (!waitCAD()){//channel is clear when func returns true
-        Serial.println("Channel activity detected");
+        #if CAD_ENABLED && SERIAL_DEBUG
+            Serial.println(F("Channel activity detected"));
+        #endif
         return false;  // Check channel activity
     }
-    Serial.println("Channel activity not detected sending data");
-	   
+    #if CAD_ENABLED && SERIAL_DEBUG
+        Serial.println(F("Channel activity not detected sending data"));
+    #endif
+
     // Position at the beginning of the FIFO
     spiWrite(RH_RF95_REG_0D_FIFO_ADDR_PTR, 0);
     // The headers
@@ -420,7 +424,10 @@ void RH_RF95::setPreambleLength(uint16_t bytes)
 
 bool RH_RF95::isChannelActive()
 {
-    Serial.println("Running in CAD");
+    #if SERIAL_DEBUG
+        Serial.println("Running in CAD");
+    #endif
+
     // Set mode RHModeCad
     if (_mode != RHModeCad)
     {
